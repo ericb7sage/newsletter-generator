@@ -4,54 +4,581 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Newsletter Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Lexend:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin:0; background:#f6f7f8; }
-    header { padding:16px 20px; background:#111827; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    header h1 { margin:0; font-size:16px; }
-    header .meta { font-size:12px; color:#cbd5e1; }
+    :root{
+  --ink-900:#111827;
+  --ink-700:#344054;
+  --ink-500:#667085;
 
-    .wrap { display:grid; grid-template-columns: 520px 1fr; gap:14px; padding:14px; }
-    .panel { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px; }
-    .panel h2 { font-size:13px; margin:0 0 10px; color:#111827; }
+  --sage-blue:#227f9c;
+  --sage-teal:#15b79e;
+  --sage-yellow:#ffd279;
 
-    label { display:block; font-size:12px; color:#374151; margin-bottom:6px; }
-    input, textarea, select {
-      width:100%; box-sizing:border-box; border:1px solid #d1d5db; border-radius:10px;
-      padding:10px; font-size:13px; outline:none; background:#fff;
-    }
-    textarea { min-height:84px; resize:vertical; }
-    .row { margin-bottom:12px; }
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-    .btns { display:flex; gap:10px; flex-wrap:wrap; }
-    button {
-      border:0; border-radius:10px; padding:10px 12px; font-weight:700; cursor:pointer;
-      background:#111827; color:#fff; font-size:13px;
-    }
-    button.secondary { background:#e5e7eb; color:#111827; }
-    button.danger { background:#b91c1c; }
-    button.tiny { padding:7px 9px; font-size:12px; border-radius:9px; }
-    .small { font-size:12px; color:#6b7280; line-height:1.35; }
+  --bg-outer:#f1ede9;
+  --bg-section-a:#fefcfa;
+  --bg-section-b:#fcfaf8;
 
-    .sticky { position:sticky; top:14px; align-self:start; }
-    iframe { width:100%; height: calc(100vh - 160px); border:1px solid #e5e7eb; border-radius:12px; background:#fff; }
+  --border-soft:#e5e7eb;
+  --shadow-soft: 1px 1px 12px rgba(0,0,0,.06);
+}
 
-    details { border:1px solid #e5e7eb; border-radius:12px; padding:10px; background:#fff; }
-    summary { cursor:pointer; font-weight:800; color:#111827; font-size:13px; }
+*{ box-sizing:border-box; }
 
-    .list { display:flex; flex-direction:column; gap:10px; margin-top:10px; }
-    .item { border:1px solid #e5e7eb; border-radius:12px; padding:10px; }
-    .itemHead { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; }
-    .itemHead strong { font-size:12px; color:#111827; }
-    .itemHead .actions { display:flex; gap:8px; align-items:center; }
+body{
+  margin:0;
+  background:var(--bg-outer);
+  font-family:"Lexend", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:var(--ink-700);
+}
 
-    .sectionList { display:flex; flex-direction:column; gap:8px; }
-    .sectionRow { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; }
-    .sectionRow .left { display:flex; align-items:center; gap:10px; }
-    .sectionRow .right { display:flex; align-items:center; gap:8px; }
+header{
+  padding:18px 20px;
+  background:var(--ink-700);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
 
-    .pill { display:inline-block; padding:2px 6px; border-radius:999px; font-size:12px; font-weight:800; border:1px solid #e5e7eb; background:#fff; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono"; }
-    .output { width:100%; min-height: 280px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono"; font-size: 12px; }
+header h1{
+  margin:0;
+  font-family:"Fraunces", Georgia, serif;
+  font-size:18px;
+  font-weight:800;
+  letter-spacing:.2px;
+}
+
+header .meta{
+  font-family:"Lexend", system-ui, sans-serif;
+  font-size:12px;
+  color:#d0d5dd;
+}
+
+.wrap{
+  display:grid;
+  grid-template-columns:520px 1fr;
+  gap:14px;
+  padding:14px;
+}
+
+.panel{
+  background:var(--bg-section-a);
+  border:2px solid var(--border-soft);
+  border-radius:18px;
+  padding:16px;
+  box-shadow:var(--shadow-soft);
+}
+
+.panel h2{
+  font-family:"Fraunces", Georgia, serif;
+  font-size:18px;
+  margin:0 0 12px;
+  font-weight:800;
+  color:var(--sage-blue);
+}
+
+.small{
+  font-size:12px;
+  color:var(--ink-500);
+  line-height:1.35;
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+label{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:var(--ink-500);
+  margin-bottom:4px;
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+input, textarea, select{
+  width:100%;
+  border:2px solid var(--border-soft);
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:14px;
+  outline:none;
+  background:#fff;
+  color:var(--ink-700);
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+textarea{ min-height:84px; resize:vertical; }
+
+input:focus, textarea:focus, select:focus{
+  border-color:var(--sage-teal);
+  box-shadow:0 0 0 3px rgba(21,183,158,.15);
+}
+
+.row{ margin-bottom:12px; }
+.grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.btns{ display:flex; gap:10px; flex-wrap:wrap; }
+
+button{
+  border:2px solid transparent;
+  border-radius:12px;
+  padding:10px 14px;
+  font-weight:800;
+  cursor:pointer;
+  font-size:13px;
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+button.primary{
+  background:var(--sage-blue);
+  color:#fff;
+}
+
+button.secondary{
+  background:#fff;
+  color:var(--ink-700);
+  border-color:var(--border-soft);
+}
+
+button.danger{
+  background:#b91c1c;
+  color:#fff;
+}
+
+button.tiny{
+  padding:7px 10px;
+  font-size:12px;
+  border-radius:10px;
+}
+
+button.primary:hover{ background:#1b6b84; }
+button.secondary:hover{ background:var(--bg-section-b); }
+
+.sticky{ position:sticky; top:14px; align-self:start; }
+
+iframe {
+  width:100%;
+  min-height:3600px;
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  background:#fff;
+}
+
+
+details{
+  border:2px solid var(--border-soft);
+  border-radius:18px;
+  padding:12px;
+  background:var(--bg-section-b);
+}
+
+summary{
+  cursor:pointer;
+  font-family:"Fraunces", Georgia, serif;
+  font-weight:800;
+  color:var(--sage-blue);
+  font-size:16px;
+  list-style:none;
+}
+
+
+summary::-webkit-details-marker{ display:none; }
+
+.list{ display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+
+.item{
+  border:2px solid var(--border-soft);
+  border-radius:16px;
+  padding:12px;
+  background:#fff;
+}
+
+.itemHead{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-bottom:6px;
+}
+
+.itemHead strong{
+  font-size:12px;
+  color:var(--ink-900);
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+.itemHead .actions{ display:flex; gap:8px; align-items:center; }
+
+.sectionList{ display:flex; flex-direction:column; gap:10px; }
+
+.sectionRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  border:2px solid var(--border-soft);
+  border-radius:16px;
+  background:#fff;
+}
+
+.sectionRow .left{ display:flex; align-items:center; gap:10px; }
+.sectionRow .right{ display:flex; align-items:center; gap:8px; }
+
+.pill{
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:800;
+  border:1px solid var(--border-soft);
+  background:var(--bg-section-b);
+  color:var(--ink-700);
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+.mono{
+  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono";
+}
+
+.output{
+  width:100%;
+  min-height:280px;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono";
+  font-size:12px;
+}
+/* ===============================
+   Section editor title colors
+   =============================== */
+
+details[data-section] summary {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 800;
+}
+
+/* Core content sections */
+details[data-section="lsat"] summary {
+  color: #227f9c;
+}
+
+details[data-section="admissions-podcast"] summary {
+  color: #15b79e;
+}
+
+details[data-section="admissions-blog"] summary {
+  color: #15b79e;
+}
+
+details[data-section="discussion"] summary {
+  color: #227f9c;
+}
+
+details[data-section="live-classes"] summary {
+  color: #db2777;
+}
+
+details[data-section="custom-links"] summary {
+  color: #ffd279;
+}
+
+/* Admin / structural sections */
+details[data-section="admin"] summary {
+  color: #191919;
+}
+
+/* ===============================
+   Lock section title colors
+   =============================== */
+
+details[data-section] > summary {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 800;
+}
+
+/* LSAT Podcast */
+details[data-section="lsat"] > summary {
+  color: #227f9c !important;
+}
+
+/* Admissions Podcast */
+details[data-section="admissions-podcast"] > summary {
+  color: #15b79e !important;
+}
+
+/* Admissions Blog */
+details[data-section="admissions-blog"] > summary {
+  color: #15b79e !important;
+}
+
+/* Discussion Forum Roundup */
+details[data-section="discussion"] > summary {
+  color: #227f9c !important;
+}
+
+/* Free Live Classes */
+details[data-section="live-classes"] > summary {
+  color: #db2777 !important;
+}
+
+/* Custom Links */
+details[data-section="custom-links"] > summary {
+  color: #ffd279 !important;
+}
+
+/* Admin sections */
+details[data-section="admin"] > summary {
+  color: #191919 !important;
+}
+
+    /* ===============================
+   Section left accent rails
+   =============================== */
+
+details[data-section] {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Base rail */
+details[data-section]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 6px;
+  border-radius: 6px;
+  background: transparent;
+}
+
+/* Section-specific rails */
+details[data-section="lsat"]::before {
+  background: #227f9c;
+}
+
+details[data-section="admissions-podcast"]::before {
+  background: #15b79e;
+}
+
+details[data-section="admissions-blog"]::before {
+  background: #15b79e;
+}
+
+details[data-section="discussion"]::before {
+  background: #227f9c;
+}
+
+details[data-section="live-classes"]::before {
+  background: #db2777;
+}
+
+details[data-section="custom-links"]::before {
+  background: #ffd279;
+}
+
+details[data-section="admin"]::before {
+  background: #191919;
+}
+
+    /* Animate rail on open */
+details[data-section]::before {
+  transform: scaleY(0.3);
+  transform-origin: top;
+  transition: transform 160ms ease-out;
+}
+
+details[data-section][open]::before {
+  transform: scaleY(1);
+}
+
+/* ===============================
+   Section-specific focus rings
+   =============================== */
+
+details[data-section] input:focus,
+details[data-section] textarea:focus,
+details[data-section] select:focus {
+  box-shadow: none;
+}
+
+/* LSAT */
+details[data-section="lsat"] input:focus,
+details[data-section="lsat"] textarea:focus,
+details[data-section="lsat"] select:focus {
+  border-color: #227f9c;
+  box-shadow: 0 0 0 3px rgba(34,127,156,.18);
+}
+
+/* Admissions (pod + blog) */
+details[data-section="admissions-podcast"] input:focus,
+details[data-section="admissions-podcast"] textarea:focus,
+details[data-section="admissions-podcast"] select:focus,
+details[data-section="admissions-blog"] input:focus,
+details[data-section="admissions-blog"] textarea:focus,
+details[data-section="admissions-blog"] select:focus {
+  border-color: #15b79e;
+  box-shadow: 0 0 0 3px rgba(21,183,158,.18);
+}
+
+/* Discussion */
+details[data-section="discussion"] input:focus,
+details[data-section="discussion"] textarea:focus,
+details[data-section="discussion"] select:focus {
+  border-color: #227f9c;
+  box-shadow: 0 0 0 3px rgba(34,127,156,.18);
+}
+
+/* Live classes */
+details[data-section="live-classes"] input:focus,
+details[data-section="live-classes"] textarea:focus,
+details[data-section="live-classes"] select:focus {
+  border-color: #db2777;
+  box-shadow: 0 0 0 3px rgba(219,39,119,.18);
+}
+
+/* Custom links */
+details[data-section="custom-links"] input:focus,
+details[data-section="custom-links"] textarea:focus,
+details[data-section="custom-links"] select:focus {
+  border-color: #ffd279;
+  box-shadow: 0 0 0 3px rgba(255,210,121,.25);
+}
+
+/* Admin */
+details[data-section="admin"] input:focus,
+details[data-section="admin"] textarea:focus,
+details[data-section="admin"] select:focus {
+  border-color: #191919;
+  box-shadow: 0 0 0 3px rgba(25,25,25,.18);
+}
+    
+/* ===============================
+   Section icons (inherit color)
+   =============================== */
+
+details[data-section] > summary::before {
+  display: inline-block;
+  width: 18px;
+  margin-right: 8px;
+  text-align: center;
+  font-size: 16px;
+}
+
+/* Icons per section */
+details[data-section="lsat"] > summary::before {
+  content: "🎧";
+}
+
+details[data-section="admissions-podcast"] > summary::before {
+  content: "🎙️";
+}
+
+details[data-section="admissions-blog"] > summary::before {
+  content: "✍️";
+}
+
+details[data-section="discussion"] > summary::before {
+  content: "💬";
+}
+
+details[data-section="live-classes"] > summary::before {
+  content: "📅";
+}
+
+details[data-section="custom-links"] > summary::before {
+  content: "🔗";
+}
+
+details[data-section="admin"] > summary::before {
+  content: "⚙️";
+}
+/* ===============================
+   Section hover – card lift
+   =============================== */
+
+details[data-section] {
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease;
+}
+
+details[data-section]:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 18px rgba(0,0,0,.06),
+    0 1px 4px rgba(0,0,0,.04);
+}
+/* ===============================
+   Section hover – rail emphasis
+   =============================== */
+
+details[data-section]::before {
+  opacity: .6;
+  transition: opacity 140ms ease;
+}
+
+details[data-section]:hover::before {
+  opacity: 1;
+}
+
+    /* ===============================
+   Section hover – summary refinement
+   =============================== */
+
+details[data-section] > summary {
+  transition:
+    letter-spacing 140ms ease,
+    opacity 140ms ease;
+}
+
+details[data-section]:hover > summary {
+  letter-spacing: .2px;
+  opacity: .95;
+}
+/* ===============================
+   Hover hints that affect preview
+   =============================== */
+
+details[data-section]:hover ~ .panel iframe {
+  box-shadow:
+    0 0 0 1px #e5e7eb,
+    0 12px 30px rgba(0,0,0,.08);
+}
+
+    /* ===============================
+   Section readiness pills
+   =============================== */
+
+.status-pill {
+  font-family: 'Lexend', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.status-pill.ready {
+  background: #ecfdf3;
+  color: #027a48;
+  border-color: #a6f4c5;
+}
+
+.status-pill.needs {
+  background: #fff7ed;
+  color: #b45309;
+  border-color: #fed7aa;
+}
+
+.status-pill.disabled {
+  background: #f2f4f7;
+  color: #667085;
+  border-color: #e4e7ec;
+}
+
   </style>
 </head>
 <body>
@@ -71,8 +598,9 @@
   <div class="panel sticky">
     <h2>Admin + Inputs</h2>
 
-    <details class="row">
-      <summary>Admin panel (low-code presets)</summary>
+    <details class="row" data-section="admin">
+  <summary>Admin panel (low-code presets)</summary>
+
       <div class="small" style="margin:10px 0;">
         These lists drive dropdowns in the editor. Add/edit/remove items here. Changes persist.
       </div>
@@ -115,8 +643,9 @@
       </div>
     </details>
 
-    <details class="row" open>
-      <summary>Sections (toggle + reorder)</summary>
+    <details class="row" open data-section="admin">
+  <summary>Sections (toggle + reorder)</summary>
+
       <div class="small" style="margin:10px 0;">
         
       </div>
@@ -128,53 +657,50 @@
       <input id="preheader" value="" />
     </div>
 
-    <details class="row" open>
-      <summary>LSAT Podcast</summary>
+    <details class="row" open data-section="lsat">
+  <summary>LSAT Podcast</summary>
+
       <div class="row" style="margin-top:10px;"><label>Header label</label><input id="lsat_header" value="LSAT Podcast" /></div>
       <div class="row"><label>Quote / kicker</label><input id="lsat_quote" value="" /></div>
-      <div class="grid">
-        <div class="row"><label>YouTube URL</label><input id="lsat_youtube_url" value="" /></div>
-        <div class="row"><label>Spotify URL</label><input id="lsat_spotify_url" value="" /></div>
-      </div>
       <div class="grid">
         <div class="row"><label>Image URL</label><input id="lsat_img" value="" /></div>
         <div class="row"><label>Image alt</label><input id="lsat_alt" value="" /></div>
       </div>
       <div class="row"><label>Description</label><textarea id="lsat_desc"></textarea></div>
+      <div class="grid">
+        <div class="row"><label>YouTube URL</label><input id="lsat_youtube_url" value="" /></div>
+        <div class="row"><label>Spotify URL</label><input id="lsat_spotify_url" value="" /></div>
+      </div>
       <div class="btns">
         <button class="secondary" type="button" id="clearLsatBtn">Clear</button>
       </div>
     </details>
 
-    <details class="row" open>
-      <summary>Admissions Podcast</summary>
+    <details class="row" open data-section="admissions-podcast">
+  <summary>Admissions Podcast</summary>
+
       <div class="row" style="margin-top:10px;"><label>Header label</label><input id="adm_header" value="Admissions Podcast" /></div>
-      <div class="grid">
-        <div class="row"><label>YouTube URL</label><input id="adm_youtube_url" value="" /></div>
-        <div class="row"><label>Spotify URL</label><input id="adm_spotify_url" value="" /></div>
-      </div>
+      <div class="row"><label>Intro paragraph</label><textarea id="adm_intro"></textarea></div>
       <div class="grid">
         <div class="row"><label>Image URL</label><input id="adm_img" value="" /></div>
         <div class="row"><label>Image alt</label><input id="adm_alt" value="" /></div>
       </div>
-      <div class="row"><label>Intro paragraph</label><textarea id="adm_intro"></textarea></div>
-      <div class="row"><label>Description (main)</label><textarea id="adm_desc"></textarea></div>
-      <div class="row"><label>Bullets (one per line)</label><textarea id="adm_bullets"></textarea></div>
+      <div class="row"><label>Description (main)</label><textarea id="adm_desc"></textarea></div><div class="grid">
+        <div class="row"><label>YouTube URL</label><input id="adm_youtube_url" value="" /></div>
+        <div class="row"><label>Spotify URL</label><input id="adm_spotify_url" value="" /></div>
+      </div>
       <div class="btns">
         <button class="secondary" type="button" id="clearAdmBtn">Clear</button>
       </div>
     </details>
 
-    <details class="row" open>
-      <summary>Admissions Blog</summary>
+    <details class="row" open data-section="admissions-blog">
+  <summary>Admissions Blog</summary>
+
       <div class="row" style="margin-top:10px;"><label>Header label</label><input id="blog_header" value="Admissions Blog" /></div>
       <div class="grid">
         <div class="row"><label>Post title</label><input id="blog_title" value="" /></div>
         <div class="row"><label>Post URL</label><input id="blog_url" value="" /></div>
-      </div>
-      <div class="grid">
-        <div class="row"><label>Author name</label><input id="blog_author" value="" /></div>
-        <div class="row"><label>Author avatar URL</label><input id="blog_avatar" value="" /></div>
       </div>
       <div class="row"><label>Description</label><textarea id="blog_desc"></textarea></div>
       <div class="row"><label>CTA label</label><input id="blog_cta" value="Read more" /></div>
@@ -183,10 +709,11 @@
       </div>
     </details>
 
-    <details class="row" open>
-      <summary>Discussion Forum Roundup</summary>
+    <details class="row" open data-section="discussion">
+  <summary>Discussion Forum Roundup</summary>
+
       <div class="small" style="margin-top:8px;">
-        Tip: paste a 7Sage discussion URL, then click <span class="pill">Profile URL</span> to auto-fill the row.
+        Tip: paste a 7Sage discussion URL, then click <span class="pill">Scrape URL</span> to auto-fill the row.
       </div>
       <div class="btns" style="margin-top:10px;">
         <button class="secondary" type="button" id="addDiscussionBtn">+ Add post</button>
@@ -195,8 +722,9 @@
       <div id="discussionList" class="list"></div>
     </details>
 
-    <details class="row" open>
-      <summary>Free Live Classes</summary>
+    <details class="row" open data-section="live-classes">
+  <summary>Free Live Classes</summary>
+
       <div class="btns" style="margin-top:10px;">
         <button class="secondary" type="button" id="addClassBtn">+ Add row</button>
         <button class="secondary" type="button" id="clearAllClassesBtn">Clear all</button>
@@ -204,8 +732,9 @@
       <div id="classesList" class="list"></div>
     </details>
 
-    <details class="row" open>
-      <summary>Custom Links Section (low-code)</summary>
+    <details class="row" open data-section="custom-links">
+  <summary>Custom Links Section (low-code)</summary>
+
       <div class="btns" style="margin-top:10px;">
         <button class="secondary" type="button" id="addCustomLinkBtn">+ Add link</button>
         <button class="secondary" type="button" id="clearAllCustomLinksBtn">Clear all</button>
@@ -301,6 +830,16 @@ let state = loadState();
 
 /** ------------------------ utils ------------------------ **/
 function deepClone(x){ return JSON.parse(JSON.stringify(x)); }
+  
+  let autoRenderTimer = null;
+
+function autoGenerateHtml() {
+  clearTimeout(autoRenderTimer);
+  autoRenderTimer = setTimeout(() => {
+    generateHtml();
+  }, 150);
+}
+
 
   
   /** ------------------------ shared presets API ------------------------ **/
@@ -327,7 +866,6 @@ function loadState(){
   try { return JSON.parse(localStorage.getItem(LS_KEYS.state)) || deepClone(DEFAULT_STATE); }
   catch { return deepClone(DEFAULT_STATE); }
 }
-function saveState(){ localStorage.setItem(LS_KEYS.state, JSON.stringify(state)); }
 
 function escHtml(str) {
   return String(str ?? "")
@@ -340,6 +878,42 @@ function paragraphsToBr(text) {
   if (!safe) return "";
   return safe.split(/\n\s*\n/g).map(p => p.replace(/\n/g, "<br>")).join("<br><br>");
 }
+  
+function textWithOptionalBullets(text) {
+  const lines = String(text || "").split("\n");
+
+  let html = "";
+  let inList = false;
+
+  for (let raw of lines) {
+    const line = raw.trim();
+
+    // Bullet line
+    if (/^[-•]\s+/.test(line)) {
+      if (!inList) {
+        html += "<ul style=\"padding-left:18px; margin:8px 0;\">";
+        inList = true;
+      }
+      html += `<li>${escHtml(line.replace(/^[-•]\s+/, ""))}</li>`;
+    } else {
+      if (inList) {
+        html += "</ul>";
+        inList = false;
+      }
+
+      if (line) {
+        html += `<div>${escHtml(line)}</div>`;
+      } else {
+        html += "<br>";
+      }
+    }
+  }
+
+  if (inList) html += "</ul>";
+
+  return html;
+}
+  
 function linesToLi(text) {
   const lines = String(text ?? "").split("\n").map(s => s.trim()).filter(Boolean);
   return lines.map(li => `<li>${escHtml(li)}</li>`).join("\n");
@@ -373,6 +947,158 @@ function findTopicIdFromScrapedLabel(label){
   return hit?.id || "";
 }
 
+  async function init() {
+  // 1. Load shared presets FIRST
+  try {
+    const shared = await apiLoadPresets();
+    if (shared) presets = shared;
+  } catch (e) {
+    console.warn("Using default presets:", e.message);
+  }
+
+  // 2. Load local draft state
+  state = loadState();
+
+  // 3. Now render EVERYTHING
+  renderAdminAll();
+  renderSectionsUI();
+  renderDiscussionUI();
+  renderClassesUI();
+  renderCustomLinksUI();
+  generateHtml();
+
+}
+
+init();
+
+ function sectionStatus(id) {
+  const sec = state.sections.find(s => s.id === id);
+  if (!sec || !sec.enabled) return "disabled";
+
+  switch (id) {
+    case "lsatPodcast":
+      return allFilled([
+        lsat_header,
+        lsat_quote,
+        lsat_img,
+        lsat_desc,
+        lsat_youtube_url,
+        lsat_spotify_url
+      ], ["lsat_alt"]) ? "ready" : "needs";
+
+    case "admissionsPodcast":
+      return allFilled([
+        adm_header,
+        adm_intro,
+        adm_img,
+        adm_desc,
+        adm_youtube_url,
+        adm_spotify_url
+      ], ["adm_alt"]) ? "ready" : "needs";
+
+    case "admissionsBlog":
+      return allFilled([
+        blog_header,
+        blog_title,
+        blog_url,
+        blog_desc,
+        blog_cta
+      ]) ? "ready" : "needs";
+
+    case "discussion":
+      return state.discussion.every(p =>
+        p.title && p.url && p.username && p.when
+      ) ? "ready" : "needs";
+
+    case "liveClasses":
+      return state.classes.every(c =>
+        c.time && c.date && c.title && c.url
+      ) ? "ready" : "needs";
+
+    case "customLinks":
+      return state.customLinks.every(l =>
+        l.prompt && l.linkText && l.url
+      ) ? "ready" : "needs";
+
+    default:
+      return "needs";
+  }
+}
+
+function allFilled(requiredEls, optionalIds = []) {
+  return requiredEls.every(el => {
+    if (!el) return false;
+    if (optionalIds.includes(el.id)) return true;
+    return String(el.value || "").trim().length > 0;
+  });
+}
+
+  
+function sectionStatus(id) {
+  const sec = state.sections.find(s => s.id === id);
+  if (!sec || !sec.enabled) return "disabled";
+
+  switch (id) {
+    case "lsatPodcast":
+      return allFilled([
+        lsat_header,
+        lsat_quote,
+        lsat_img,
+        lsat_desc,
+        lsat_youtube_url,
+        lsat_spotify_url
+      ], ["lsat_alt"]) ? "ready" : "needs";
+
+    case "admissionsPodcast":
+      return allFilled([
+        adm_header,
+        adm_intro,
+        adm_img,
+        adm_desc,
+        adm_youtube_url,
+        adm_spotify_url
+      ], ["adm_alt"]) ? "ready" : "needs";
+
+    case "admissionsBlog":
+      return allFilled([
+        blog_header,
+        blog_title,
+        blog_url,
+        blog_desc,
+        blog_cta
+      ]) ? "ready" : "needs";
+
+    case "discussion":
+      return state.discussion.every(p =>
+        p.title && p.url && p.username && p.when
+      ) ? "ready" : "needs";
+
+    case "liveClasses":
+      return state.classes.every(c =>
+        c.time && c.date && c.title && c.url
+      ) ? "ready" : "needs";
+
+    case "customLinks":
+      return state.customLinks.every(l =>
+        l.prompt && l.linkText && l.url
+      ) ? "ready" : "needs";
+
+    default:
+      return "needs";
+  }
+}
+ function renderSectionStatusPill(sectionId) {
+  const status = sectionStatus(sectionId);
+
+  if (status === "ready") {
+    return `<span class="status-pill ready">✓ Ready</span>`;
+  }
+  if (status === "disabled") {
+    return `<span class="status-pill disabled">⏸ Off</span>`;
+  }
+  return `<span class="status-pill needs">⚠ Needs info</span>`;
+}
+
 /** ------------------------ sections UI ------------------------ **/
 function renderSectionsUI(){
   const root = document.getElementById("sectionsUI");
@@ -384,8 +1110,13 @@ function renderSectionsUI(){
       <div class="left">
         <input type="checkbox" ${s.enabled ? "checked" : ""} data-sec-toggle="${s.id}" style="width:auto;">
         <div>
-          <div style="font-weight:900; font-size:12px; color:#111827;">${escHtml(s.label)}</div>
-          <div class="small">${escHtml(s.id)}</div>
+          <div style="display:flex; align-items:center; gap:8px;">
+  <div style="font-weight:900; font-size:12px;">
+    ${escHtml(s.label)}
+  </div>
+  ${renderSectionStatusPill(s.id)}
+</div>
+
         </div>
       </div>
       <div class="right">
@@ -672,7 +1403,7 @@ function renderDiscussionUI(){
         <div class="actions">
           ${topic ? `<span class="pill">${escHtml(topic.label)}</span>` : ""}
           ${mood ? `<span class="pill" style="background:${escAttr(mood.bg)}; color:${escAttr(mood.text)};">${escHtml(mood.label)}</span>` : ""}
-          <button class="secondary tiny" type="button" data-profile-post="${idx}">Profile URL</button>
+          <button class="secondary tiny" type="button" data-profile-post="${idx}">Scrape URL</button>
           <button class="secondary tiny" type="button" data-clear-post="${idx}">Clear</button>
           <button class="danger tiny" type="button" data-remove-post="${idx}">Remove</button>
         </div>
@@ -965,11 +1696,27 @@ document.getElementById("clearLsatBtn").addEventListener("click", () => {
   clearInputs(["lsat_quote","lsat_youtube_url","lsat_spotify_url","lsat_img","lsat_alt","lsat_desc"]);
 });
 document.getElementById("clearAdmBtn").addEventListener("click", () => {
-  clearInputs(["adm_youtube_url","adm_spotify_url","adm_img","adm_alt","adm_intro","adm_desc","adm_bullets"]);
+  clearInputs([
+    "adm_youtube_url",
+    "adm_spotify_url",
+    "adm_img",
+    "adm_alt",
+    "adm_intro",
+    "adm_desc"
+  ]);
 });
-document.getElementById("clearBlogBtn").addEventListener("click", () => {
-  clearInputs(["blog_title","blog_url","blog_author","blog_avatar","blog_desc"]);
+
+document.getElementById("clearAdmBtn").addEventListener("click", () => {
+  clearInputs([
+    "adm_youtube_url",
+    "adm_spotify_url",
+    "adm_img",
+    "adm_alt",
+    "adm_intro",
+    "adm_desc"
+  ]);
 });
+
 
 /** ------------------------ email shell + section wrapper ------------------------ **/
 function emailShell({ preheader, sectionsHtml, unsubUrl }) {
@@ -1123,7 +1870,7 @@ function buildPodcastSection(bg, { header, quote, yt, sp, img, alt, desc, header
   const spSafe = escAttr(sp);
   const imgSafe = escAttr(img);
   const altSafe = escHtml(alt);
-  const descSafe = paragraphsToBr(desc);
+  const descSafe = textWithOptionalBullets(desc);
   const hColor = escAttr(headerColor || "#227f9c");
 
   const inner = `
@@ -1181,71 +1928,123 @@ function buildAdmissionsPodcast(bg){
     sp: document.getElementById("adm_spotify_url").value,
     img: document.getElementById("adm_img").value,
     alt: document.getElementById("adm_alt").value,
-    desc: (document.getElementById("adm_intro").value || "") + (document.getElementById("adm_desc").value ? ("\n\n" + document.getElementById("adm_desc").value) : ""),
+    desc: [
+      document.getElementById("adm_intro").value,
+      document.getElementById("adm_desc").value
+    ].filter(Boolean).join("\n\n"),
     headerColor: "#15b79e"
-  })
-  .replace(
-    "</td></tr>",
-    (() => {
-      const bullets = document.getElementById("adm_bullets").value;
-      const li = linesToLi(bullets);
-      if (!li) return "</td></tr>";
-      return `<br><br><ul align="left" style="margin:0; padding:0 0 0 18px; list-style-position:outside;">${li}</ul></td></tr>`;
-    })()
-  );
+  });
 }
+
 
 function buildAdmissionsBlog(bg){
   const header = escHtml(document.getElementById("blog_header").value || "Admissions Blog");
-  const title = escHtml(document.getElementById("blog_title").value);
-  const url = escAttr(document.getElementById("blog_url").value);
-  const author = escHtml(document.getElementById("blog_author").value);
-  const avatar = escAttr(document.getElementById("blog_avatar").value);
-  const desc = paragraphsToBr(document.getElementById("blog_desc").value);
-  const cta = escHtml(document.getElementById("blog_cta").value || "Read more");
+  const title  = escHtml(document.getElementById("blog_title").value);
+  const url    = escAttr(document.getElementById("blog_url").value);
+  const desc   = textWithOptionalBullets(
+    document.getElementById("blog_desc").value
+  );
+  const cta    = escHtml(document.getElementById("blog_cta").value || "Read more");
+
+  // Fixed author
+  const authorName = "Jake Baska";
+  const authorAvatar =
+    "https://www.gravatar.com/avatar/078822ac5e3142951af136795491c23c?size=80&default=robohash";
 
   const inner = `
-<tr><td align="center" style="font-family:'Fraunces', Georgia, serif; font-size:22px; font-weight:700; color:#15b79e; padding-bottom:12px;">${header}</td></tr>
-<tr><td align="center">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="90%" style="width:90%;">
-    ${title && url ? `<tr><td align="left" style="padding-top:4px;">
-      <a href="${url}" target="_blank"
-        style="font-family:'Fraunces', Georgia, serif; font-size:18px; font-weight:800; line-height:1.3; color:#344054; text-decoration:none;">
-        ${title}
-      </a>
-    </td></tr>` : ""}
-    ${(author || avatar) ? `<tr><td align="left" style="padding-top:8px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-        <tr>
-          ${avatar ? `<td width="24" valign="middle">
-            <img src="${avatar}" width="24" height="24" style="display:block; border-radius:50%; border:2px solid #e5e7eb;" alt="">
-          </td>` : ""}
-          ${author ? `<td valign="middle" style="padding-left:8px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:16px; color:#15b79e;">
-            <span style="font-weight:800;">${author}</span>
-          </td>` : ""}
-        </tr>
-      </table>
-    </td></tr>` : ""}
-    ${desc ? `<tr><td align="left" style="padding-top:10px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:15px; line-height:1.5; color:#344054;">
-      ${desc}
-    </td></tr>` : ""}
-    ${(url && (title || desc)) ? `<tr><td align="center" style="padding-top:16px;">
-      <a href="${url}" target="_blank"
-  style="display:inline-block; background-color:#15b79e; padding:10px 20px;
-         border-radius:10px; font-family:'Lexend', Helvetica, Arial, sans-serif;
-         font-size:14px; font-weight:900; color:#ffffff; text-decoration:none;">
-  ${cta}
-  <img src="https://ik.imagekit.io/7sage/Newsletter%20Files/Newsletter%20Files%202/rightchevron.png"
-       width="16" height="16"
-       alt="›"
-       style="vertical-align:middle; margin-left:8px;">
-</a>
+<tr>
+  <td align="center"
+      style="font-family:'Fraunces', Georgia, serif;
+             font-size:22px;
+             font-weight:700;
+             color:#15b79e;
+             padding-bottom:12px;">
+    ${header}
+  </td>
+</tr>
 
-    </td></tr>` : ""}
-  </table>
-</td></tr>`;
+<tr>
+  <td align="center">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="90%">
+      
+      ${title && url ? `
+      <tr>
+        <td align="left">
+          <a href="${url}" target="_blank"
+             style="font-family:'Fraunces', Georgia, serif;
+                    font-size:18px;
+                    font-weight:800;
+                    line-height:1.3;
+                    color:#344054;
+                    text-decoration:none;">
+            ${title}
+          </a>
+        </td>
+      </tr>` : ""}
+
+      <tr>
+        <td align="left" style="padding-top:8px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="24" valign="middle">
+                <img src="${authorAvatar}"
+                     width="24" height="24"
+                     style="display:block; border-radius:50%; border:2px solid #e5e7eb;"
+                     alt="${authorName}">
+              </td>
+              <td valign="middle"
+                  style="padding-left:8px;
+                         font-family:'Lexend', Helvetica, Arial, sans-serif;
+                         font-size:16px;
+                         color:#15b79e;">
+                <strong>${authorName}</strong>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      ${desc ? `
+      <tr>
+        <td align="left"
+            style="padding-top:10px;
+                   font-family:'Lexend', Helvetica, Arial, sans-serif;
+                   font-size:15px;
+                   line-height:1.5;
+                   color:#344054;">
+          ${desc}
+        </td>
+      </tr>` : ""}
+
+      ${url ? `
+      <tr>
+        <td align="center" style="padding-top:16px;">
+          <a href="${url}" target="_blank"
+             style="display:inline-block;
+                    background-color:#15b79e;
+                    padding:10px 20px;
+                    border-radius:10px;
+                    font-family:'Lexend', Helvetica, Arial, sans-serif;
+                    font-size:14px;
+                    font-weight:900;
+                    color:#ffffff;
+                    text-decoration:none;">
+            ${cta}
+            <img src="https://ik.imagekit.io/7sage/Newsletter%20Files/Newsletter%20Files%202/rightchevron.png"
+                 width="16" height="16"
+                 alt="›"
+                 style="vertical-align:middle; margin-left:8px;">
+          </a>
+        </td>
+      </tr>` : ""}
+
+    </table>
+  </td>
+</tr>`;
+
   return sectionWrapper(bg, inner);
 }
+
 
 function buildDiscussion(bg){
   const divider = `<div style="height:1px; border-top:2px solid #e5e7eb; margin:14px 0;"></div>`;
@@ -1436,10 +2235,13 @@ function buildSectionsHtml(){
   return out;
 }
 
+  
 function generateHtml(){
   const preheader = escHtml(document.getElementById("preheader").value);
   const unsubUrl = escAttr(document.getElementById("unsubscribe_url").value || "{{unsubscribe_url}}");
   const sectionsHtml = buildSectionsHtml();
+  renderSectionsUI();
+
 
   const html = emailShell({ preheader, sectionsHtml, unsubUrl });
   document.getElementById("output").value = html;
@@ -1502,6 +2304,16 @@ renderDiscussionUI();
 renderClassesUI();
 renderCustomLinksUI();
 generateHtml();
+  
+document.addEventListener("input", (e) => {
+  if (
+    e.target.matches("input, textarea, select") &&
+    !e.target.closest('[data-section="admin"]')
+  ) {
+    autoGenerateHtml();
+  }
+});
+
 </script>
 </body>
 </html>
