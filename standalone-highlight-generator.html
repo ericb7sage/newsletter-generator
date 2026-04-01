@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Standalone Highlight Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Lexend:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink-900: #111827;
+      --ink-700: #344054;
+      --ink-500: #667085;
+      --bg-outer: #f1ede9;
+      --bg-card: #fefcfa;
+      --bg-card-soft: #fcfaf8;
+      --accent: #227f9c;
+      --border-soft: #e5e7eb;
+      --shadow-soft: 1px 1px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg-outer);
+      color: var(--ink-700);
+      font-family: "Lexend", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    .topbar {
+      padding: 18px 20px;
+      background: var(--ink-700);
+      color: #fff;
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .topbar p {
+      margin: 6px 0 0;
+      color: #d0d5dd;
+      font-size: 12px;
+    }
+
+    .wrap {
+      display: grid;
+      grid-template-columns: 540px 1fr;
+      gap: 14px;
+      padding: 14px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--bg-card);
+      border: 2px solid var(--border-soft);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 18px;
+      color: var(--accent);
+    }
+
+    .row {
+      margin-bottom: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink-500);
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 2px solid var(--border-soft);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+      background: #fff;
+      color: var(--ink-700);
+      font-family: "Lexend", system-ui, sans-serif;
+    }
+
+    textarea {
+      min-height: 88px;
+      resize: vertical;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(34, 127, 156, 0.16);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 12px 0;
+    }
+
+    button {
+      border: 2px solid transparent;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: "Lexend", system-ui, sans-serif;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    button.secondary {
+      background: #fff;
+      color: var(--ink-700);
+      border-color: var(--border-soft);
+    }
+
+    button.primary:hover {
+      background: #1b6b84;
+    }
+
+    button.secondary:hover {
+      background: var(--bg-card-soft);
+    }
+
+    .output {
+      min-height: 260px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+
+    iframe {
+      width: 100%;
+      min-height: 1300px;
+      border: 1px solid var(--border-soft);
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .hint {
+      margin-top: -2px;
+      margin-bottom: 10px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--ink-500);
+    }
+
+    @media (max-width: 1060px) {
+      .wrap {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Standalone Highlight Generator</h1>
+    <p>Builds one email with exactly three blocks: header, one discussion post, and footer.</p>
+  </header>
+
+  <main class="wrap">
+    <section class="panel">
+      <h2>Inputs</h2>
+      <p class="hint">All fields are saved locally in this browser and repopulated on reload.</p>
+
+      <div class="row">
+        <label for="preheader">Preheader</label>
+        <input id="preheader" value="" />
+      </div>
+
+      <div class="row">
+        <label for="section_label">Section Label</label>
+        <input id="section_label" value="Discussion Highlight" />
+      </div>
+
+      <div class="grid">
+        <div class="row">
+          <label for="post_topic">Topic Label</label>
+          <input id="post_topic" value="General" />
+        </div>
+        <div class="row">
+          <label for="post_when">Date/Time Label</label>
+          <input id="post_when" value="Today" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="post_title">Post Title</label>
+        <input id="post_title" value="" />
+      </div>
+
+      <div class="row">
+        <label for="post_url">Post URL</label>
+        <input id="post_url" placeholder="https://7sage.com/discussion/..." value="" />
+      </div>
+
+      <div class="grid">
+        <div class="row">
+          <label for="post_username">Username</label>
+          <input id="post_username" value="" />
+        </div>
+        <div class="row">
+          <label for="post_mood">Mood Badge (Optional)</label>
+          <input id="post_mood" value="" placeholder="Motivated" />
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="row">
+          <label for="post_avatar">Avatar URL (Optional)</label>
+          <input id="post_avatar" value="" />
+        </div>
+        <div class="row">
+          <label for="post_avatar_alt">Avatar Alt</label>
+          <input id="post_avatar_alt" value="User Avatar" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="post_summary">Post Summary (Markdown allowed)</label>
+        <textarea id="post_summary"></textarea>
+      </div>
+
+      <div class="grid">
+        <div class="row">
+          <label for="post_button">Post Button Label</label>
+          <input id="post_button" value="See the post" />
+        </div>
+        <div class="row">
+          <label for="discussion_url">Discussion Home URL</label>
+          <input id="discussion_url" value="https://7sage.com/discussion" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="unsubscribe_url">Unsubscribe URL</label>
+        <input id="unsubscribe_url" value="{{unsubscribe_url}}" />
+      </div>
+
+      <div class="actions">
+        <button id="generateBtn" class="primary" type="button">Generate HTML</button>
+        <button id="copyBtn" class="secondary" type="button">Copy HTML</button>
+      </div>
+
+      <div class="row">
+        <label for="output">Output HTML</label>
+        <textarea id="output" class="output" spellcheck="false"></textarea>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Preview</h2>
+      <iframe id="preview" title="Standalone highlight preview"></iframe>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "standalone_highlight_generator_v1";
+    const FIELD_IDS = [
+      "preheader",
+      "section_label",
+      "post_topic",
+      "post_when",
+      "post_title",
+      "post_url",
+      "post_username",
+      "post_mood",
+      "post_avatar",
+      "post_avatar_alt",
+      "post_summary",
+      "post_button",
+      "discussion_url",
+      "unsubscribe_url"
+    ];
+
+    function escHtml(str) {
+      return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function escAttr(str) {
+      return escHtml(str).replace(/\s+/g, " ").trim();
+    }
+
+    function inlineMarkdownToHtml(text, options = {}) {
+      const allowLinks = options.allowLinks !== false;
+      function decorateEscapedInline(escaped) {
+        let html = escaped
+          .replace(/`([^`]+)`/g, "<code style=\"font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono'; background:#f2f4f7; padding:1px 4px; border-radius:4px;\">$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+          .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+          .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+          .replace(/_([^_\n]+)_/g, "<em>$1</em>");
+        if (allowLinks) {
+          html = html.replace(/(https?:\/\/[^\s<]+)/g, "<a href=\"$1\" target=\"_blank\" style=\"color:#227f9c; text-decoration:none; font-weight:700;\">$1</a>");
+        }
+        return html;
+      }
+
+      const raw = String(text || "");
+      if (!allowLinks) return decorateEscapedInline(escHtml(raw));
+
+      const linkPattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+      let html = "";
+      let cursor = 0;
+      let match;
+
+      while ((match = linkPattern.exec(raw)) !== null) {
+        const full = match[0];
+        const label = match[1];
+        const href = match[2];
+        html += decorateEscapedInline(escHtml(raw.slice(cursor, match.index)));
+        html += "<a href=\"" + escAttr(href) + "\" target=\"_blank\" style=\"color:#227f9c; text-decoration:none; font-weight:700;\">" + decorateEscapedInline(escHtml(label)) + "</a>";
+        cursor = match.index + full.length;
+      }
+
+      html += decorateEscapedInline(escHtml(raw.slice(cursor)));
+      return html;
+    }
+
+    function markdownToEmailHtml(markdown) {
+      const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+      let html = "";
+      let paragraph = [];
+
+      function flushParagraph() {
+        if (!paragraph.length) return;
+        html += "<p style=\"margin:0 0 12px 0; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:15px; line-height:1.6; color:#344054;\">" +
+          paragraph.map(function (line) { return inlineMarkdownToHtml(line); }).join("<br>") +
+          "</p>";
+        paragraph = [];
+      }
+
+      lines.forEach(function (rawLine) {
+        const line = rawLine.trim();
+        if (!line) {
+          flushParagraph();
+          return;
+        }
+        paragraph.push(line);
+      });
+
+      flushParagraph();
+      return html;
+    }
+
+    function getField(id) {
+      return document.getElementById(id).value;
+    }
+
+    function buildHeader() {
+      return "<tr>" +
+        "<td align=\"center\" style=\"background-color:#fefcfa; border-radius:12px 12px 0 0; padding:24px 0\">" +
+        "<a href=\"https://7sage.com/\" target=\"_blank\" style=\"text-decoration:none; display:inline-block;\">" +
+        "<img src=\"https://ik.imagekit.io/7sage/Newsletter%20Files/Newsletter%20Files%202/Logo%20-%207Sage%20LSAT%20-%20b2r2-1%20(1).png?updatedAt=1765812786613\" alt=\"7Sage\" width=\"240\" style=\"display:block; width:240px; height:auto; border:0; outline:none; text-decoration:none;\">" +
+        "</a>" +
+        "</td>" +
+        "</tr>";
+    }
+
+    function buildDiscussionPostSection() {
+      const sectionLabel = escHtml(getField("section_label") || "Discussion Highlight").toUpperCase();
+      const topic = escHtml(getField("post_topic"));
+      const when = inlineMarkdownToHtml(getField("post_when"));
+      const title = inlineMarkdownToHtml(getField("post_title"), { allowLinks: false });
+      const postUrl = escAttr(getField("post_url"));
+      const username = inlineMarkdownToHtml(getField("post_username"));
+      const mood = escHtml(getField("post_mood"));
+      const avatar = escAttr(getField("post_avatar"));
+      const avatarAlt = escAttr(getField("post_avatar_alt") || "User Avatar");
+      const summary = markdownToEmailHtml(getField("post_summary"));
+      const postButton = escHtml(getField("post_button") || "See the post");
+      const discussionUrl = escAttr(getField("discussion_url") || "https://7sage.com/discussion");
+
+      const titleHtml = title
+        ? (postUrl
+            ? "<a href=\"" + postUrl + "\" target=\"_blank\" style=\"font-family:'Fraunces', Georgia, serif; font-size:20px; font-weight:700; color:#227f9c; line-height:1.3; text-decoration:none;\">" + title + "</a>"
+            : "<div style=\"font-family:'Fraunces', Georgia, serif; font-size:20px; font-weight:700; color:#227f9c; line-height:1.3;\">" + title + "</div>")
+        : "";
+
+      const seePostLink = postUrl
+        ? "<a href=\"" + postUrl + "\" target=\"_blank\" style=\"font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; font-weight:700; color:#b3b8c4; text-decoration:none; white-space:nowrap;\">" +
+            postButton +
+            "<img src=\"https://ik.imagekit.io/7sage/Newsletter%20Files/Newsletter%20Files%202/rightchevron.png\" width=\"12\" height=\"12\" alt=\"\" style=\"vertical-align:middle; margin-left:6px;\">" +
+          "</a>"
+        : "";
+
+      const avatarCell = avatar
+        ? "<td valign=\"top\" width=\"32\" style=\"width:32px; padding-right:10px;\"><img src=\"" + avatar + "\" width=\"32\" height=\"32\" style=\"display:block; border-radius:50%; background-color:#f9fafb;\" alt=\"" + avatarAlt + "\"></td>"
+        : "";
+
+      const metaWhen = when ? "<span style=\"color:#898989; font-weight:500\">&#8226; " + when + "</span>" : "";
+      const moodBadge = mood
+        ? "<span style=\"display:inline-block; margin-left:8px; padding:2px 6px; background-color:#ebf7fb; border-radius:999px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; font-weight:800; color:#344054; line-height:1.2; white-space:nowrap;\">" + mood + "</span>"
+        : "";
+
+      return "<tr>" +
+        "<td style=\"padding:0; background-color:#fcfaf8;\">" +
+          "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\" style=\"background-color:#fcfaf8; border-bottom:1px solid #e5e7eb;\">" +
+            "<tr>" +
+              "<td align=\"center\" style=\"padding:16px 8px 20px 8px;\">" +
+                "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"560\" style=\"width:560px;\">" +
+                  "<tr><td align=\"center\" style=\"padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;\">" + sectionLabel + "</td></tr>" +
+                  "<tr><td align=\"center\">" +
+                    "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\" style=\"margin-top:4px; box-shadow:0 2px 8px rgba(16,24,40,0.08); border-radius:12px;\">" +
+                      "<tr><td style=\"background:#ffffff; border:1px solid #e5e7eb; border-bottom:0; border-radius:12px 12px 0 0; padding:16px 20px;\">" +
+                        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\">" +
+                          "<tr>" +
+                            avatarCell +
+                            "<td valign=\"top\">" +
+                              "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\">" +
+                                "<tr>" +
+                                  "<td align=\"left\" style=\"font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:13px; font-weight:800; color:#227f9c; line-height:1.3;\">" + topic + " " + metaWhen + "</td>" +
+                                  "<td align=\"right\">" + seePostLink + "</td>" +
+                                "</tr>" +
+                              "</table>" +
+                              "<div style=\"font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:13px; color:#667085; line-height:1.3; margin-top:2px;\">" +
+                                (username ? "<span style=\"font-weight:800; color:#344054;\">" + username + "</span>" : "") +
+                                moodBadge +
+                              "</div>" +
+                            "</td>" +
+                          "</tr>" +
+                        "</table>" +
+                        (titleHtml ? "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\" style=\"margin-top:10px;\"><tr><td>" + titleHtml + "</td></tr></table>" : "") +
+                        (summary ? "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\" style=\"margin-top:12px;\"><tr><td>" + summary + "</td></tr></table>" : "") +
+                      "</td></tr>" +
+                      "<tr>" +
+                        "<td align=\"center\" style=\"background-color:#227f9c; border-left:1px solid #e5e7eb; border-right:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb; border-radius:0 0 12px 12px; padding:12px 16px;\">" +
+                          "<a href=\"" + discussionUrl + "\" target=\"_blank\" style=\"display:inline-block; color:#ffffff; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:14px; font-weight:800; text-decoration:none;\">" +
+                            "See more posts" +
+                            "<img src=\"https://ik.imagekit.io/7sage/Newsletter%20Files/Newsletter%20Files%202/rightchevron.png\" width=\"16\" height=\"16\" alt=\"\" style=\"vertical-align:middle; margin-left:8px;\">" +
+                          "</a>" +
+                        "</td>" +
+                      "</tr>" +
+                    "</table>" +
+                  "</td></tr>" +
+                "</table>" +
+              "</td>" +
+            "</tr>" +
+          "</table>" +
+        "</td>" +
+      "</tr>";
+    }
+
+    function buildFooter() {
+      const unsubUrl = escAttr(getField("unsubscribe_url") || "{{unsubscribe_url}}");
+      return "<tr>" +
+        "<td align=\"center\" style=\"background-color:#344054; border-radius:0 0 12px 12px; padding:32px 20px;\">" +
+          "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"padding-top:16px\">" +
+            "<tr><td align=\"center\" style=\"font-family:'Fraunces', Georgia, serif; font-size:20px; font-weight:700; color:#ffffff; padding-bottom:8px;\">The LSAT is hard.</td></tr>" +
+            "<tr><td align=\"center\" style=\"font-family:'Fraunces', Georgia, serif; font-size:20px; font-weight:700; color:#ffffff;\">We'll help you <mark style=\"padding:2px; color:#344054; background-color:#ffd279\">crush it anyway.</mark></td></tr>" +
+          "</table>" +
+          "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"padding-top:16px;\">" +
+            "<tr>" +
+              "<td align=\"center\" style=\"padding:0 12px;\"><a href=\"https://www.youtube.com/c/7sage\" target=\"_blank\"><img src=\"https://ik.imagekit.io/7sage/Newsletter%20Files/Newsletter%20Files%202/youtube_icon.png?updatedAt=1765812785920\" width=\"48\" height=\"36\" alt=\"YouTube\" style=\"display:block; border:0;\"></a></td>" +
+              "<td align=\"center\" style=\"padding:0 12px;\"><a href=\"https://www.tiktok.com/@7sagelsat\" target=\"_blank\"><img src=\"https://ik.imagekit.io/7sage/Newsletter%20Files/Newsletter%20Files%202/tiktok_icon.png?updatedAt=1765812785841\" width=\"28\" height=\"28\" alt=\"TikTok\" style=\"display:block; border:0;\"></a></td>" +
+              "<td align=\"center\" style=\"padding:0 12px;\"><a href=\"https://www.instagram.com/7sage/\" target=\"_blank\"><img src=\"https://ik.imagekit.io/7sage/Newsletter%20Files/Newsletter%20Files%202/instagram_icon.png?updatedAt=1765812785783\" width=\"32\" height=\"32\" alt=\"Instagram\" style=\"display:block; border:0;\"></a></td>" +
+              "<td align=\"center\" style=\"padding:0 16px;\"><div style=\"width:1px; height:40px; background-color:#667085; display:inline-block;\"></div></td>" +
+              "<td align=\"center\" style=\"padding:0 12px;\"><a href=\"https://open.spotify.com/show/1IYx61IAEHDWfq1Q7Xhq5l\" target=\"_blank\" style=\"font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:#d0d5dd; text-decoration:none;\">Podcasts</a></td>" +
+            "</tr>" +
+          "</table>" +
+          "<div style=\"margin-top:20px;\"><a href=\"" + unsubUrl + "\" target=\"_blank\" style=\"font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:14px; font-weight:600; color:#d0d5dd; text-decoration:none;\">Unsubscribe</a></div>" +
+        "</td>" +
+      "</tr>";
+    }
+
+    function buildHtml() {
+      const preheader = escHtml(getField("preheader"));
+      const preheaderPad = "&#847; ".repeat(220);
+
+      return "<!DOCTYPE html>" +
+        "<html lang=\"en\">" +
+        "<head>" +
+          "<meta charset=\"UTF-8\">" +
+          "<title>Standalone Highlight</title>" +
+          "<meta http-equiv=\"x-ua-compatible\" content=\"ie=edge\">" +
+          "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
+          "<style>" +
+            "@media only screen and (max-width:600px){" +
+              ".container{ width:100% !important; max-width:100% !important; }" +
+              ".inner{ width:100% !important; max-width:100% !important; }" +
+            "}" +
+          "</style>" +
+        "</head>" +
+        "<body style=\"Margin:0; padding:0; background-color:#f1ede9;\">" +
+          "<div style=\"display:none; font-size:1px; color:#ffffff; line-height:1px; max-height:0px; max-width:0px; opacity:0; overflow:hidden;\">" +
+            "<span>" + preheader + "</span><span>" + preheaderPad + "</span>" +
+          "</div>" +
+          "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\" style=\"background-color:#f1ede9;\">" +
+            "<tr><td align=\"center\" style=\"padding:16px 0;\">" +
+              "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"600\" class=\"container\" style=\"width:600px; background-color:#f1ede9; border-collapse:separate; border-radius:12px; box-shadow:0 2px 8px rgba(16,24,40,0.08);\">" +
+                buildHeader() +
+                buildDiscussionPostSection() +
+                buildFooter() +
+              "</table>" +
+            "</td></tr>" +
+          "</table>" +
+        "</body></html>";
+    }
+
+    function saveState() {
+      const data = {};
+      FIELD_IDS.forEach(function (id) {
+        data[id] = getField(id);
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function loadState() {
+      try {
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        FIELD_IDS.forEach(function (id) {
+          if (Object.prototype.hasOwnProperty.call(data, id)) {
+            document.getElementById(id).value = data[id];
+          }
+        });
+      } catch (_error) {
+        /* Ignore invalid localStorage payloads and keep defaults. */
+      }
+    }
+
+    function generateHtml() {
+      const html = buildHtml();
+      document.getElementById("output").value = html;
+      document.getElementById("preview").srcdoc = html;
+      saveState();
+    }
+
+    let autoRenderTimer = null;
+    function autoGenerateHtml() {
+      clearTimeout(autoRenderTimer);
+      autoRenderTimer = setTimeout(generateHtml, 120);
+    }
+
+    document.getElementById("generateBtn").addEventListener("click", generateHtml);
+    document.getElementById("copyBtn").addEventListener("click", async function () {
+      if (!document.getElementById("output").value.trim()) generateHtml();
+      try {
+        await navigator.clipboard.writeText(document.getElementById("output").value);
+        alert("Copied HTML to clipboard.");
+      } catch (_error) {
+        alert("Clipboard copy failed. Copy manually from the Output HTML box.");
+      }
+    });
+
+    FIELD_IDS.forEach(function (id) {
+      const el = document.getElementById(id);
+      el.addEventListener("input", autoGenerateHtml);
+      el.addEventListener("change", autoGenerateHtml);
+    });
+
+    loadState();
+    generateHtml();
+  </script>
+</body>
+</html>

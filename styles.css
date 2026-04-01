@@ -1,0 +1,723 @@
+:root{
+  --ink-900:#111827;
+  --ink-700:#344054;
+  --ink-500:#667085;
+
+  --sage-blue:#227f9c;
+  --sage-teal:#15b79e;
+  --sage-yellow:#ffd279;
+
+  --bg-outer:#f1ede9;
+  --bg-section-a:#fefcfa;
+  --bg-section-b:#fcfaf8;
+
+  --border-soft:#e5e7eb;
+  --shadow-soft: 1px 1px 12px rgba(0,0,0,.06);
+}
+
+*{ box-sizing:border-box; }
+
+body{
+  margin:0;
+  background:var(--bg-outer);
+  font-family:"Lexend", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:var(--ink-700);
+}
+
+header{
+  padding:18px 20px;
+  background:var(--ink-700);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+header h1{
+  margin:0;
+  font-family:"Fraunces", Georgia, serif;
+  font-size:18px;
+  font-weight:800;
+  letter-spacing:.2px;
+}
+
+header .meta{
+  font-family:"Lexend", system-ui, sans-serif;
+  font-size:12px;
+  color:#d0d5dd;
+}
+
+.header-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  position:relative;
+}
+
+.header-actions > button{
+  height:38px;
+}
+
+.mode-status{
+  display:inline-flex;
+  align-items:center;
+  height:38px;
+  border:2px solid rgba(255,255,255,.26);
+  border-radius:12px;
+  padding:0 12px;
+  font-family:"Lexend", system-ui, sans-serif;
+  font-size:12px;
+  font-weight:800;
+  color:#ffffff;
+  letter-spacing:.2px;
+  white-space:nowrap;
+}
+
+header .admin-dropdown{
+  position:relative;
+  border:0;
+  background:transparent;
+  padding:0;
+  margin:0;
+}
+
+header .admin-dropdown > summary{
+  list-style:none;
+  cursor:pointer;
+  border:2px solid var(--border-soft);
+  border-radius:12px;
+  padding:8px 12px;
+  background:#fff;
+  color:var(--ink-700);
+  font-family:"Lexend", system-ui, sans-serif;
+  font-size:13px;
+  font-weight:800;
+  line-height:1.2;
+}
+
+#presetsDropdown > summary{
+  font-family:"Lexend", system-ui, sans-serif !important;
+}
+
+header .admin-dropdown > summary::-webkit-details-marker{
+  display:none;
+}
+
+header .admin-dropdown > summary::before{
+  content:none !important;
+}
+
+header .admin-dropdown[open] > summary{
+  background:var(--bg-section-b);
+}
+
+.admin-dropdown-panel{
+  position:absolute;
+  right:0;
+  top:44px;
+  width:min(520px, calc(100vw - 32px));
+  max-height:70vh;
+  overflow:auto;
+  padding:12px;
+  border:2px solid var(--border-soft);
+  border-radius:16px;
+  background:var(--bg-section-a);
+  color:var(--ink-700);
+  box-shadow:var(--shadow-soft);
+  z-index:60;
+}
+
+.admin-dropdown-panel .btns{
+  margin-top:10px;
+}
+
+.admin-dropdown-panel .row:last-child{
+  margin-bottom:0;
+}
+
+.wrap{
+  display:grid;
+  grid-template-columns:520px 1fr;
+  gap:14px;
+  padding:14px;
+}
+
+body.preview-edit-mode .wrap{
+  grid-template-columns:1fr;
+}
+
+body.preview-edit-mode #editorPanel{
+  display:none;
+}
+
+body.preview-edit-mode #previewPanel{
+  width:100%;
+}
+
+.panel{
+  background:var(--bg-section-a);
+  border:2px solid var(--border-soft);
+  border-radius:18px;
+  padding:16px;
+  box-shadow:var(--shadow-soft);
+}
+
+.panel h2{
+  font-family:"Fraunces", Georgia, serif;
+  font-size:18px;
+  margin:0 0 12px;
+  font-weight:800;
+  color:var(--sage-blue);
+}
+
+.small{
+  font-size:12px;
+  color:var(--ink-500);
+  line-height:1.35;
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+.section-manager{
+  border:2px solid var(--border-soft);
+  border-radius:16px;
+  padding:12px;
+  background:#fff;
+}
+
+.section-manager .grid{
+  align-items:end;
+}
+
+.section-manager button{
+  width:100%;
+}
+
+label{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:var(--ink-500);
+  margin-bottom:4px;
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+input, textarea, select{
+  width:100%;
+  border:2px solid var(--border-soft);
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:14px;
+  outline:none;
+  background:#fff;
+  color:var(--ink-700);
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+textarea{ min-height:84px; resize:vertical; }
+
+input:focus, textarea:focus, select:focus{
+  border-color:var(--sage-teal);
+  box-shadow:0 0 0 3px rgba(21,183,158,.15);
+}
+
+.row{ margin-bottom:12px; }
+.grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.btns{ display:flex; gap:10px; flex-wrap:wrap; }
+
+button{
+  border:2px solid transparent;
+  border-radius:12px;
+  padding:10px 14px;
+  font-weight:800;
+  cursor:pointer;
+  font-size:13px;
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+button.primary{
+  background:var(--sage-blue);
+  color:#fff;
+}
+
+button.secondary{
+  background:#fff;
+  color:var(--ink-700);
+  border-color:var(--border-soft);
+}
+
+button.danger{
+  background:#b91c1c;
+  color:#fff;
+}
+
+button.tiny{
+  padding:7px 10px;
+  font-size:12px;
+  border-radius:10px;
+}
+
+button.primary:hover{ background:#1b6b84; }
+button.secondary:hover{ background:var(--bg-section-b); }
+
+.sticky{ position:sticky; top:14px; align-self:start; }
+
+iframe {
+  width:100%;
+  min-height:3600px;
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  background:#fff;
+}
+
+.preview-controls{
+  padding:10px 12px;
+  border:2px solid var(--border-soft);
+  border-radius:12px;
+  background:#fff;
+}
+
+
+details{
+  border:2px solid var(--border-soft);
+  border-radius:18px;
+  padding:12px;
+  background:var(--bg-section-b);
+}
+
+summary{
+  cursor:pointer;
+  font-family:"Fraunces", Georgia, serif;
+  font-weight:800;
+  color:var(--sage-blue);
+  font-size:16px;
+  list-style:none;
+}
+
+
+summary::-webkit-details-marker{ display:none; }
+
+.list{ display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+
+.item{
+  border:2px solid var(--border-soft);
+  border-radius:16px;
+  padding:12px;
+  background:#fff;
+}
+
+.itemHead{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-bottom:6px;
+}
+
+.itemHead strong{
+  font-size:12px;
+  color:var(--ink-900);
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+.itemHead .actions{ display:flex; gap:8px; align-items:center; }
+
+.sectionList{ display:flex; flex-direction:column; gap:10px; }
+
+.sectionRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  border:2px solid var(--border-soft);
+  border-radius:16px;
+  background:#fff;
+}
+
+.sectionRow .left{ display:flex; align-items:center; gap:10px; }
+.sectionRow .right{ display:flex; align-items:center; gap:8px; }
+
+.pill{
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:800;
+  border:1px solid var(--border-soft);
+  background:var(--bg-section-b);
+  color:var(--ink-700);
+  font-family:"Lexend", system-ui, sans-serif;
+}
+
+.mono{
+  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono";
+}
+/* ===============================
+   Section editor title colors
+   =============================== */
+
+details[data-section] summary {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 800;
+}
+
+/* Core content sections */
+details[data-section="lsat"] summary {
+  color: #227f9c;
+}
+
+details[data-section="admissions-podcast"] summary {
+  color: #15b79e;
+}
+
+details[data-section="admissions-blog"] summary {
+  color: #15b79e;
+}
+
+details[data-section="discussion"] summary {
+  color: #227f9c;
+}
+
+details[data-section="live-classes"] summary {
+  color: #db2777;
+}
+
+details[data-section="custom-links"] summary {
+  color: #ffd279;
+}
+
+details[data-section="markdown-sections"] summary {
+  color: #0f766e;
+}
+
+/* Admin / structural sections */
+details[data-section="admin"] summary {
+  color: #191919;
+}
+
+/* ===============================
+   Lock section title colors
+   =============================== */
+
+details[data-section] > summary {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 800;
+}
+
+/* LSAT Podcast */
+details[data-section="lsat"] > summary {
+  color: #227f9c !important;
+}
+
+/* Admissions Podcast */
+details[data-section="admissions-podcast"] > summary {
+  color: #15b79e !important;
+}
+
+/* Admissions Blog */
+details[data-section="admissions-blog"] > summary {
+  color: #15b79e !important;
+}
+
+/* Discussion Forum Roundup */
+details[data-section="discussion"] > summary {
+  color: #227f9c !important;
+}
+
+/* Free Live Classes */
+details[data-section="live-classes"] > summary {
+  color: #db2777 !important;
+}
+
+/* Custom Links */
+details[data-section="custom-links"] > summary {
+  color: #ffd279 !important;
+}
+
+/* Markdown sections */
+details[data-section="markdown-sections"] > summary {
+  color: #0f766e !important;
+}
+
+/* Admin sections */
+details[data-section="admin"] > summary {
+  color: #191919 !important;
+}
+
+/* ===============================
+   Section-specific focus rings
+   =============================== */
+
+details[data-section] input:focus,
+details[data-section] textarea:focus,
+details[data-section] select:focus {
+  box-shadow: none;
+}
+
+/* LSAT */
+details[data-section="lsat"] input:focus,
+details[data-section="lsat"] textarea:focus,
+details[data-section="lsat"] select:focus {
+  border-color: #227f9c;
+  box-shadow: 0 0 0 3px rgba(34,127,156,.18);
+}
+
+/* Admissions (pod + blog) */
+details[data-section="admissions-podcast"] input:focus,
+details[data-section="admissions-podcast"] textarea:focus,
+details[data-section="admissions-podcast"] select:focus,
+details[data-section="admissions-blog"] input:focus,
+details[data-section="admissions-blog"] textarea:focus,
+details[data-section="admissions-blog"] select:focus {
+  border-color: #15b79e;
+  box-shadow: 0 0 0 3px rgba(21,183,158,.18);
+}
+
+/* Discussion */
+details[data-section="discussion"] input:focus,
+details[data-section="discussion"] textarea:focus,
+details[data-section="discussion"] select:focus {
+  border-color: #227f9c;
+  box-shadow: 0 0 0 3px rgba(34,127,156,.18);
+}
+
+/* Live classes */
+details[data-section="live-classes"] input:focus,
+details[data-section="live-classes"] textarea:focus,
+details[data-section="live-classes"] select:focus {
+  border-color: #db2777;
+  box-shadow: 0 0 0 3px rgba(219,39,119,.18);
+}
+
+/* Custom links */
+details[data-section="custom-links"] input:focus,
+details[data-section="custom-links"] textarea:focus,
+details[data-section="custom-links"] select:focus {
+  border-color: #ffd279;
+  box-shadow: 0 0 0 3px rgba(255,210,121,.25);
+}
+
+/* Markdown sections */
+details[data-section="markdown-sections"] input:focus,
+details[data-section="markdown-sections"] textarea:focus,
+details[data-section="markdown-sections"] select:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15,118,110,.2);
+}
+
+/* Admin */
+details[data-section="admin"] input:focus,
+details[data-section="admin"] textarea:focus,
+details[data-section="admin"] select:focus {
+  border-color: #191919;
+  box-shadow: 0 0 0 3px rgba(25,25,25,.18);
+}
+    
+/* ===============================
+   Section icons (inherit color)
+   =============================== */
+
+details[data-section] > summary::before {
+  display: inline-block;
+  width: 18px;
+  margin-right: 8px;
+  text-align: center;
+  font-size: 16px;
+}
+
+/* Icons per section */
+details[data-section="lsat"] > summary::before {
+  content: "🎧";
+}
+
+details[data-section="admissions-podcast"] > summary::before {
+  content: "🎙️";
+}
+
+details[data-section="admissions-blog"] > summary::before {
+  content: "✍️";
+}
+
+details[data-section="discussion"] > summary::before {
+  content: "💬";
+}
+
+details[data-section="live-classes"] > summary::before {
+  content: "📅";
+}
+
+details[data-section="custom-links"] > summary::before {
+  content: "🔗";
+}
+
+details[data-section="markdown-sections"] > summary::before {
+  content: "📝";
+}
+
+details[data-section="admin"] > summary::before {
+  content: "⚙️";
+}
+/* ===============================
+   Section hover – card lift
+   =============================== */
+
+details[data-section] {
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease;
+}
+
+details[data-section]:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 18px rgba(0,0,0,.06),
+    0 1px 4px rgba(0,0,0,.04);
+}
+    /* ===============================
+   Section hover – summary refinement
+   =============================== */
+
+details[data-section] > summary {
+  transition:
+    letter-spacing 140ms ease,
+    opacity 140ms ease;
+}
+
+details[data-section]:hover > summary {
+  letter-spacing: .2px;
+  opacity: .95;
+}
+/* ===============================
+   Hover hints that affect preview
+   =============================== */
+
+details[data-section]:hover ~ .panel iframe {
+  box-shadow:
+    0 0 0 1px #e5e7eb,
+    0 12px 30px rgba(0,0,0,.08);
+}
+
+    /* ===============================
+   Section readiness pills
+   =============================== */
+
+.status-pill {
+  font-family: 'Lexend', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.status-pill.ready {
+  background: #ecfdf3;
+  color: #027a48;
+  border-color: #a6f4c5;
+}
+
+.status-pill.needs {
+  background: #fff7ed;
+  color: #b45309;
+  border-color: #fed7aa;
+}
+
+.status-pill.disabled {
+  background: #f2f4f7;
+  color: #667085;
+  border-color: #e4e7ec;
+}
+/* Preset collapsibles */
+.preset-group summary {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  cursor:pointer;
+  list-style:none;
+}
+
+.preset-group summary::-webkit-details-marker {
+  display:none;
+}
+
+.preset-group summary span {
+  font-weight:800;
+  font-size:12px;
+  color:#191919;
+}
+
+/* Prevent button click from toggling collapse */
+.preset-group summary button {
+  pointer-events:auto;
+}
+@media (max-width: 1100px) {
+  .wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .sticky {
+    position: static;
+    top: auto;
+  }
+
+  iframe {
+    min-height: 900px;
+  }
+}
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+    
+    /* ===============================
+   Custom select styling (editor)
+   =============================== */
+
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+
+  width: 100%;
+  border: 2px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 10px 40px 10px 12px;
+
+  font-size: 14px;
+  font-family: "Lexend", system-ui, sans-serif;
+  color: var(--ink-700);
+  background-color: #ffffff;
+
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 8l4 4 4-4' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px 16px;
+
+  cursor: pointer;
+}
+
+/* Hover */
+select:hover {
+  background-color: var(--bg-section-b);
+}
+
+/* Disabled */
+select:disabled {
+  background-color: #f2f4f7;
+  color: #98a2b3;
+  cursor: not-allowed;
+}
+select:focus {
+  outline: none;
+}
+
+    
