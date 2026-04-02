@@ -8,6 +8,8 @@ const LIBRARY_ITEM_NEW_MARKDOWN = "__new_markdown_section__";
 const LIBRARY_ITEM_NEW_HTML_FRAGMENT = "__new_html_fragment__";
 const ELEMENT_LIBRARY_ITEM_IMAGE = "image";
 const ELEMENT_LIBRARY_ITEM_CTA = "cta";
+const ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT = "markdown_fragment";
+const ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT = "html_fragment";
 const PREVIEW_FONT_STYLESHEET_HREF = "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Lexend:wght@400;500;600;700;800&display=swap";
 const PROJECT_STORAGE_VERSION = 1;
 const PROJECT_DEFAULT_NAME = "Project 1";
@@ -193,7 +195,7 @@ function isHtmlFragmentId(id){
 }
 
 function markdownSectionFallbackLabel(index){
-  return `Markdown Section ${Number(index) + 1}`;
+  return `Blank Section ${Number(index) + 1}`;
 }
 
 function htmlFragmentFallbackLabel(index){
@@ -214,6 +216,7 @@ function normalizeMarkdownSections(rawSections){
       id,
       label: String(raw?.label || ""),
       markdown: String(raw?.markdown || ""),
+      htmlFragment: String(raw?.htmlFragment || ""),
       ctaText: String(raw?.ctaText || ""),
       ctaUrl: String(raw?.ctaUrl || ""),
       imageUrl: String(raw?.imageUrl || ""),
@@ -1766,6 +1769,10 @@ function bindPreviewEditorInteractions() {
         changed = addCtaLinkForSection(sectionId);
       } else if (payload.elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
         changed = addImageForSection(sectionId);
+      } else if (payload.elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) {
+        changed = addMarkdownFragmentForSection(sectionId);
+      } else if (payload.elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) {
+        changed = addHtmlFragmentForSection(sectionId);
       }
 
       if (!changed) return;
@@ -2181,6 +2188,8 @@ function sectionSupportsElementDrop(sectionId, elementType) {
   if (!sectionId) return false;
   if (elementType === ELEMENT_LIBRARY_ITEM_CTA) return sectionSupportsInlineCta(sectionId);
   if (elementType === ELEMENT_LIBRARY_ITEM_IMAGE) return sectionSupportsInlineImage(sectionId);
+  if (elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) return isMarkdownSectionId(sectionId);
+  if (elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) return isMarkdownSectionId(sectionId);
   return false;
 }
 
@@ -2284,6 +2293,76 @@ function promptForImageValues(sectionId) {
   return promptForImageValuesForLabel(sectionLabel, defaults);
 }
 
+function promptForMarkdownFragmentForLabel(sectionLabel, currentMarkdown = "") {
+  const displayLabel = String(sectionLabel || "").trim() || "section";
+  const markdown = window.prompt(
+    `Markdown fragment for "${displayLabel}"`,
+    String(currentMarkdown || "")
+  );
+  if (markdown === null) return null;
+  return String(markdown || "").trim();
+}
+
+function promptForHtmlFragmentForLabel(sectionLabel, currentHtml = "") {
+  const displayLabel = String(sectionLabel || "").trim() || "section";
+  const html = window.prompt(
+    `HTML fragment for "${displayLabel}"`,
+    String(currentHtml || "")
+  );
+  if (html === null) return null;
+  return String(html || "").trim();
+}
+
+function addMarkdownFragmentForSection(sectionId) {
+  if (!isMarkdownSectionId(sectionId)) return false;
+  const section = state.markdownSections.find(item => item.id === sectionId);
+  if (!section) return false;
+
+  const sectionIdx = state.sections.findIndex(item => item.id === sectionId);
+  const sectionLabel = sectionDisplayLabel(
+    sectionIdx >= 0 ? state.sections[sectionIdx] : null,
+    sectionIdx >= 0 ? sectionIdx : 0
+  ) || sectionId;
+  const nextMarkdown = promptForMarkdownFragmentForLabel(sectionLabel, section.markdown);
+  if (nextMarkdown === null) return false;
+
+  if (section.markdown && nextMarkdown && section.markdown !== nextMarkdown) {
+    if (!window.confirm("This section already has markdown content. Replace it?")) return false;
+  }
+
+  section.markdown = nextMarkdown;
+  renderMarkdownSectionsUI();
+  saveState();
+  renderSectionsUI();
+  generateHtml();
+  return true;
+}
+
+function addHtmlFragmentForSection(sectionId) {
+  if (!isMarkdownSectionId(sectionId)) return false;
+  const section = state.markdownSections.find(item => item.id === sectionId);
+  if (!section) return false;
+
+  const sectionIdx = state.sections.findIndex(item => item.id === sectionId);
+  const sectionLabel = sectionDisplayLabel(
+    sectionIdx >= 0 ? state.sections[sectionIdx] : null,
+    sectionIdx >= 0 ? sectionIdx : 0
+  ) || sectionId;
+  const nextHtml = promptForHtmlFragmentForLabel(sectionLabel, section.htmlFragment);
+  if (nextHtml === null) return false;
+
+  if (section.htmlFragment && nextHtml && section.htmlFragment !== nextHtml) {
+    if (!window.confirm("This section already has an HTML fragment. Replace it?")) return false;
+  }
+
+  section.htmlFragment = nextHtml;
+  renderMarkdownSectionsUI();
+  saveState();
+  renderSectionsUI();
+  generateHtml();
+  return true;
+}
+
 function addImageForSection(sectionId) {
   if (!sectionSupportsInlineImage(sectionId)) return false;
   const values = promptForImageValues(sectionId);
@@ -2343,7 +2422,7 @@ function addImageForSection(sectionId) {
 
 function insertElementLibraryItemAtIndex(elementType, targetEnabledIndex) {
   if (elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
-    const values = promptForImageValuesForLabel("new markdown section", {
+    const values = promptForImageValuesForLabel("new blank section", {
       imageUrl: "",
       imageAlt: "",
       imageLinkUrl: "",
@@ -2359,11 +2438,27 @@ function insertElementLibraryItemAtIndex(elementType, targetEnabledIndex) {
   }
 
   if (elementType === ELEMENT_LIBRARY_ITEM_CTA) {
-    const values = promptForCtaValuesForLabel("new markdown section");
+    const values = promptForCtaValuesForLabel("new blank section");
     if (!values) return "";
     return createBlankMarkdownSectionAtIndex(targetEnabledIndex, {
       ctaText: values.ctaText,
       ctaUrl: values.ctaUrl
+    });
+  }
+
+  if (elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) {
+    const markdown = promptForMarkdownFragmentForLabel("new blank section");
+    if (markdown === null) return "";
+    return createBlankMarkdownSectionAtIndex(targetEnabledIndex, {
+      markdown
+    });
+  }
+
+  if (elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) {
+    const htmlFragment = promptForHtmlFragmentForLabel("new blank section");
+    if (htmlFragment === null) return "";
+    return createBlankMarkdownSectionAtIndex(targetEnabledIndex, {
+      htmlFragment
     });
   }
 
@@ -2574,8 +2669,13 @@ function addHighlightAuthorMetaFromPreview() {
         const section = state.markdownSections.find(s => s.id === id);
         if (!section) return "needs";
         const hasMarkdown = String(section.markdown || "").trim().length > 0;
+        const hasHtmlFragment = String(section.htmlFragment || "").trim().length > 0;
         const hasImage = String(section.imageUrl || "").trim().length > 0;
-        return (hasMarkdown || hasImage) ? "ready" : "needs";
+        const hasCta = (
+          String(section.ctaText || "").trim().length > 0 &&
+          String(section.ctaUrl || "").trim().length > 0
+        );
+        return (hasMarkdown || hasHtmlFragment || hasImage || hasCta) ? "ready" : "needs";
       }
       if (isHtmlFragmentId(id)) {
         const fragment = state.htmlFragments.find(s => s.id === id);
@@ -3307,6 +3407,7 @@ function blankMarkdownSection(){
     id: `markdownSection_${Math.random().toString(36).slice(2, 10)}`,
     label:"",
     markdown:"",
+    htmlFragment:"",
     ctaText:"",
     ctaUrl:"",
     imageUrl:"",
@@ -3392,8 +3493,13 @@ function renderMarkdownSectionsUI(){
           <input data-markdown-k="label" placeholder="e.g. Study Tip">
         </div>
         <div class="row">
-          <label>Markdown</label>
+          <label>Markdown fragment (optional)</label>
           <textarea data-markdown-k="markdown" placeholder="# Heading&#10;Write your copy here with **bold**, *italics*, lists, and [links](https://example.com)."></textarea>
+        </div>
+        <div class="row">
+          <label>HTML fragment (optional)</label>
+          <textarea data-markdown-k="htmlFragment" placeholder="<div style=&quot;padding:16px; border:1px solid #e5e7eb;&quot;>Paste trusted HTML snippet</div>"></textarea>
+          <div class="small" style="margin-top:6px;">Injected as HTML. Script tags are removed automatically for safety.</div>
         </div>
         <div class="grid">
           <div class="row">
@@ -3433,6 +3539,7 @@ function renderMarkdownSectionsUI(){
     const summary = block.querySelector("summary");
     const labelInput = block.querySelector("[data-markdown-k='label']");
     const markdownInput = block.querySelector("[data-markdown-k='markdown']");
+    const htmlFragmentInput = block.querySelector("[data-markdown-k='htmlFragment']");
     const imageUrlInput = block.querySelector("[data-markdown-k='imageUrl']");
     const imageAltInput = block.querySelector("[data-markdown-k='imageAlt']");
     const imageLinkUrlInput = block.querySelector("[data-markdown-k='imageLinkUrl']");
@@ -3445,6 +3552,7 @@ function renderMarkdownSectionsUI(){
     summary.textContent = markdownSectionSummary(section, idx);
     labelInput.value = section.label || "";
     markdownInput.value = section.markdown || "";
+    htmlFragmentInput.value = section.htmlFragment || "";
     imageUrlInput.value = section.imageUrl || "";
     imageAltInput.value = section.imageAlt || "";
     imageLinkUrlInput.value = section.imageLinkUrl || "";
@@ -3453,6 +3561,7 @@ function renderMarkdownSectionsUI(){
     ctaTextInput.value = section.ctaText || "";
     ctaUrlInput.value = section.ctaUrl || "";
     bindAutoResizeTextarea(markdownInput);
+    bindAutoResizeTextarea(htmlFragmentInput);
 
     labelInput.oninput = () => {
       section.label = labelInput.value;
@@ -3467,6 +3576,13 @@ function renderMarkdownSectionsUI(){
     markdownInput.oninput = () => {
       clearLinkedRichOverridesForInput(markdownInput);
       section.markdown = markdownInput.value;
+      ensureMarkdownSectionEntry(section, idx);
+      saveState();
+      autoGenerateHtml();
+    };
+
+    htmlFragmentInput.oninput = () => {
+      section.htmlFragment = htmlFragmentInput.value;
       ensureMarkdownSectionEntry(section, idx);
       saveState();
       autoGenerateHtml();
@@ -3925,8 +4041,7 @@ function buildPreviewSectionLibraryHtml() {
     .filter(({ section }) => !section.enabled);
 
   const chips = [
-    `<span data-section-library-item="${escAttr(LIBRARY_ITEM_NEW_MARKDOWN)}" draggable="true">Blank Markdown Section</span>`,
-    `<span data-section-library-item="${escAttr(LIBRARY_ITEM_NEW_HTML_FRAGMENT)}" draggable="true">HTML Fragment Section</span>`
+    `<span data-section-library-item="${escAttr(LIBRARY_ITEM_NEW_MARKDOWN)}" draggable="true">Blank Section</span>`
   ];
 
   disabledSections.forEach(({ section, idx }) => {
@@ -3935,7 +4050,7 @@ function buildPreviewSectionLibraryHtml() {
   });
   const chipsHtml = chips.join("");
   const helperText = disabledSections.length === 0
-    ? `<div data-preview-library-empty style="margin-top:8px;">Drag “Blank Markdown Section” or “HTML Fragment Section” to add custom blocks.</div>`
+    ? `<div data-preview-library-empty style="margin-top:8px;">Drag “Blank Section” to add a flexible content block.</div>`
     : "";
   const body = `<div data-preview-library-list>${chipsHtml}</div>${helperText}`;
 
@@ -3949,14 +4064,16 @@ function buildPreviewSectionLibraryHtml() {
 function buildPreviewElementLibraryHtml() {
   const chips = [
     `<span data-element-library-item="${escAttr(ELEMENT_LIBRARY_ITEM_IMAGE)}" draggable="true">Image Block</span>`,
-    `<span data-element-library-item="${escAttr(ELEMENT_LIBRARY_ITEM_CTA)}" draggable="true">CTA Button</span>`
+    `<span data-element-library-item="${escAttr(ELEMENT_LIBRARY_ITEM_CTA)}" draggable="true">CTA Button</span>`,
+    `<span data-element-library-item="${escAttr(ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT)}" draggable="true">Markdown Fragment</span>`,
+    `<span data-element-library-item="${escAttr(ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT)}" draggable="true">HTML Fragment</span>`
   ];
 
   return `
 <div data-preview-element-box>
   <div data-preview-element-title>Element Blocks</div>
   <div data-preview-element-list>${chips.join("")}</div>
-  <div data-preview-element-hint>Drag onto a compatible section to inject content, or drop between sections to create a new markdown block.</div>
+  <div data-preview-element-hint>Drag onto a compatible section to inject content, or drop between sections to create a new blank section prefilled with that element.</div>
 </div>`;
 }
 
@@ -4817,6 +4934,7 @@ function buildMarkdownSection(bg, section, options = {}){
   const label = String(section?.label || "").trim();
   const richKey = previewMarkdownRichKey(section?.id);
   const contentHtml = getRichContentForRender(richKey, markdownToEmailHtml(section?.markdown || ""));
+  const htmlFragment = sanitizeInjectedHtmlFragment(section?.htmlFragment || "");
   const imageUrl = escAttr(section?.imageUrl || "");
   const imageAlt = escAttr(section?.imageAlt || "");
   const imageLinkUrl = escAttr(section?.imageLinkUrl || "");
@@ -4824,7 +4942,7 @@ function buildMarkdownSection(bg, section, options = {}){
   const hasCta = !!(String(section?.ctaText || "").trim() && String(section?.ctaUrl || "").trim());
   const ctaText = inlineMarkdownToHtml(section?.ctaText || "", { allowLinks: false });
   const ctaUrl = escAttr(section?.ctaUrl || "");
-  if (!contentHtml && !imageUrl && !hasCta && !interactive) return "";
+  if (!contentHtml && !htmlFragment && !imageUrl && !hasCta && !interactive) return "";
 
   const sectionLabel = label
     ? wrapEditablePlain(
@@ -4866,9 +4984,14 @@ function buildMarkdownSection(bg, section, options = {}){
 <tr><td align="left" class="pad" style="padding:0 20px 12px 20px;">
   ${wrapEditableRich(contentHtml, richKey, interactive)}
 </td></tr>` : "";
+  const htmlFragmentRow = htmlFragment ? `
+<tr><td align="left" class="pad" style="padding:0 20px 12px 20px;">
+  ${htmlFragment}
+</td></tr>` : "";
   const inner = `
 ${sectionLabelRow}
 ${contentRow}
+${htmlFragmentRow}
 ${imageHtml}
 ${ctaHtml}`;
 
