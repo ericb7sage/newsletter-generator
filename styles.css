@@ -130,6 +130,10 @@ header .admin-dropdown[open] > summary{
   z-index:60;
 }
 
+.projects-dropdown-panel{
+  width:min(420px, calc(100vw - 32px));
+}
+
 .admin-dropdown-panel .btns{
   margin-top:10px;
 }
@@ -146,15 +150,34 @@ header .admin-dropdown[open] > summary{
 }
 
 body.preview-edit-mode .wrap{
-  grid-template-columns:1fr;
+  grid-template-columns:420px 1fr;
 }
 
 body.preview-edit-mode #editorPanel{
-  display:none;
+  display:block;
+  max-height:calc(100vh - 28px);
+  overflow:auto;
 }
 
 body.preview-edit-mode #previewPanel{
   width:100%;
+}
+
+#editorPanel.preview-section-tray-mode{
+  border-color:#d0d5dd;
+  background:#ffffff;
+}
+
+#editorPanel.preview-section-tray-mode h2{
+  margin-bottom:10px;
+}
+
+#editorPanel [data-preview-section-tray-empty]{
+  border:2px dashed var(--border-soft);
+  border-radius:14px;
+  padding:12px;
+  background:#fff;
+  margin-bottom:0;
 }
 
 .panel{

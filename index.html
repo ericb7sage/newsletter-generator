@@ -66,6 +66,29 @@
       </div>
     </details>
 
+    <details class="admin-dropdown" id="projectsDropdown" data-storage-ui="true">
+      <summary>Projects</summary>
+      <div class="admin-dropdown-panel projects-dropdown-panel" data-storage-ui="true">
+        <div class="row" data-storage-ui="true">
+          <label>Saved projects</label>
+          <select id="projectSelect"></select>
+        </div>
+        <div class="row" data-storage-ui="true">
+          <label>Project name</label>
+          <input id="projectNameInput" value="" placeholder="e.g. April LSAT newsletter" />
+        </div>
+        <div class="btns" data-storage-ui="true">
+          <button class="secondary" id="newProjectBtn" type="button">New</button>
+          <button class="secondary" id="saveProjectBtn" type="button">Save</button>
+          <button class="secondary" id="saveAsProjectBtn" type="button">Save as</button>
+          <button class="secondary" id="exportProjectBtn" type="button">Export JSON</button>
+          <button class="secondary" id="importProjectBtn" type="button">Import JSON</button>
+          <button class="danger" id="deleteProjectBtn" type="button">Delete</button>
+        </div>
+        <input id="importProjectFile" type="file" accept=".json,application/json" hidden data-storage-ui="true" />
+      </div>
+    </details>
+
     <span id="modeStatus" class="mode-status" aria-live="polite">Preview mode</span>
     <button class="secondary" type="button" id="modeToggleBtn">Preview</button>
     <button class="secondary" type="button" id="copyBtn">Copy HTML</button>
@@ -262,6 +285,17 @@
       <div class="btns" style="margin-top:10px;">
         <button class="secondary" type="button" id="addMarkdownSectionBtn">+ Add blank markdown section</button>
         <button class="secondary" type="button" id="clearAllMarkdownSectionsBtn">Clear all markdown sections</button>
+      </div>
+    </div>
+
+    <div class="row" id="htmlFragmentsControls">
+      <label>HTML Fragment Sections</label>
+      <div class="small" style="margin-top:4px;">
+        Paste trusted HTML snippets (for example from CodePen) and insert them as sections.
+      </div>
+      <div class="btns" style="margin-top:10px;">
+        <button class="secondary" type="button" id="addHtmlFragmentBtn">+ Add HTML fragment</button>
+        <button class="secondary" type="button" id="clearAllHtmlFragmentsBtn">Clear all HTML fragments</button>
       </div>
     </div>
 

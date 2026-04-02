@@ -1,17 +1,80 @@
 /** ------------------------ storage keys ------------------------ **/
 const LS_KEYS = {
   presets: "nlgen_presets_v2",
-  state: "nlgen_state_v2"
+  state: "nlgen_state_v2",
+  projectsFs: "nlgen_projects_fs_v1"
 };
 const LIBRARY_ITEM_NEW_MARKDOWN = "__new_markdown_section__";
+const LIBRARY_ITEM_NEW_HTML_FRAGMENT = "__new_html_fragment__";
+const ELEMENT_LIBRARY_ITEM_IMAGE = "image";
+const ELEMENT_LIBRARY_ITEM_CTA = "cta";
 const PREVIEW_FONT_STYLESHEET_HREF = "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Lexend:wght@400;500;600;700;800&display=swap";
+const PROJECT_STORAGE_VERSION = 1;
+const PROJECT_DEFAULT_NAME = "Project 1";
+const PROJECT_EXPORT_FORMAT_SINGLE = "nlgen-project-v1";
+const PROJECT_EXPORT_FORMAT_MULTI = "nlgen-projects-v1";
+const PROJECT_FIELD_IDS = Object.freeze([
+  "preheader",
+  "unsubscribe_url",
+  "highlight_label",
+  "highlight_title",
+  "highlight_url",
+  "highlight_avatar",
+  "highlight_avatar_alt",
+  "highlight_username",
+  "highlight_mood",
+  "highlight_summary",
+  "highlight_button",
+  "in_this_newsletter_markdown",
+  "feature_header",
+  "feature_top_text",
+  "feature_img",
+  "feature_alt",
+  "feature_img_link",
+  "feature_img_width",
+  "feature_bottom_text",
+  "feature_cta_text_1",
+  "feature_cta_url_1",
+  "feature_cta_text_2",
+  "feature_cta_url_2",
+  "lsat_header",
+  "lsat_quote",
+  "lsat_youtube_url",
+  "lsat_spotify_url",
+  "lsat_img",
+  "lsat_alt",
+  "lsat_desc",
+  "adm_header",
+  "adm_intro",
+  "adm_img",
+  "adm_alt",
+  "adm_desc",
+  "adm_youtube_url",
+  "adm_spotify_url",
+  "extra_header",
+  "extra_quote",
+  "extra_img",
+  "extra_alt",
+  "extra_desc",
+  "extra_youtube_url",
+  "extra_spotify_url",
+  "blog_desc",
+  "discussion_label"
+]);
+
+let projectFilesystem = null;
+let activeProjectId = "";
+let projectFieldDefaults = null;
+let applyingProjectSnapshot = false;
 
 function saveState() {
   localStorage.setItem(LS_KEYS.state, JSON.stringify(state));
+  syncActiveProjectSnapshot();
 }
 
 function savePresets() {
   localStorage.setItem(LS_KEYS.presets, JSON.stringify(presets));
+  syncActiveProjectSnapshot();
 }
 
 /** ------------------------ defaults (BLANK) ------------------------ **/
@@ -74,8 +137,10 @@ const DEFAULT_STATE = {
     { prompt:"", linkText:"", url:"" }
   ],
   markdownSections: [],
+  htmlFragments: [],
   previewEditor: {
     enabled: false,
+    activeSectionId: "",
     richOverrides: {}
   }
 };
@@ -123,8 +188,16 @@ function isMarkdownSectionId(id){
   return String(id || "").startsWith("markdownSection_");
 }
 
+function isHtmlFragmentId(id){
+  return String(id || "").startsWith("htmlFragment_");
+}
+
 function markdownSectionFallbackLabel(index){
   return `Markdown Section ${Number(index) + 1}`;
+}
+
+function htmlFragmentFallbackLabel(index){
+  return `HTML Fragment ${Number(index) + 1}`;
 }
 
 function normalizeMarkdownSections(rawSections){
@@ -151,6 +224,24 @@ function normalizeMarkdownSections(rawSections){
   });
 }
 
+function normalizeHtmlFragments(rawFragments){
+  if (!Array.isArray(rawFragments)) return [];
+
+  const usedIds = new Set();
+  return rawFragments.map((raw, idx) => {
+    const candidateId = String(raw?.id || "").trim();
+    let id = isHtmlFragmentId(candidateId) ? candidateId : `htmlFragment_${idx + 1}`;
+    while (usedIds.has(id)) id = `${id}_${usedIds.size + 1}`;
+    usedIds.add(id);
+
+    return {
+      id,
+      label: String(raw?.label || ""),
+      html: String(raw?.html || "")
+    };
+  });
+}
+
 function syncMarkdownSections(sectionState, markdownSections){
   const sections = Array.isArray(sectionState) ? sectionState : [];
   const markdownById = new Map(markdownSections.map((m, idx) => [m.id, { ...m, _idx: idx }]));
@@ -158,7 +249,7 @@ function syncMarkdownSections(sectionState, markdownSections){
   const out = [];
 
   sections.forEach(sec => {
-    if (!sec?.id || sec.id === "markdownSections") return;
+    if (!sec?.id || sec.id === "markdownSections" || sec.id === "htmlFragments") return;
 
     if (isMarkdownSectionId(sec.id)) {
       const md = markdownById.get(sec.id);
@@ -188,6 +279,43 @@ function syncMarkdownSections(sectionState, markdownSections){
   return out;
 }
 
+function syncHtmlFragments(sectionState, htmlFragments){
+  const sections = Array.isArray(sectionState) ? sectionState : [];
+  const fragmentsById = new Map(htmlFragments.map((f, idx) => [f.id, { ...f, _idx: idx }]));
+  const seen = new Set();
+  const out = [];
+
+  sections.forEach(sec => {
+    if (!sec?.id || sec.id === "htmlFragments") return;
+
+    if (isHtmlFragmentId(sec.id)) {
+      const fragment = fragmentsById.get(sec.id);
+      if (!fragment) return;
+      out.push({
+        ...sec,
+        id: fragment.id,
+        label: String(fragment.label || "").trim() || htmlFragmentFallbackLabel(fragment._idx),
+        enabled: sec.enabled !== false
+      });
+      seen.add(fragment.id);
+      return;
+    }
+
+    out.push(sec);
+  });
+
+  htmlFragments.forEach((fragment, idx) => {
+    if (seen.has(fragment.id)) return;
+    out.push({
+      id: fragment.id,
+      label: String(fragment.label || "").trim() || htmlFragmentFallbackLabel(idx),
+      enabled: true
+    });
+  });
+
+  return out;
+}
+
 function normalizeState(raw){
   const fallback = deepClone(DEFAULT_STATE);
   if (!raw || typeof raw !== "object") return fallback;
@@ -195,7 +323,13 @@ function normalizeState(raw){
   const markdownSections = normalizeMarkdownSections(
     Array.isArray(raw.markdownSections) ? raw.markdownSections : fallback.markdownSections
   );
-  const sections = syncMarkdownSections(mergeSectionState(raw.sections), markdownSections);
+  const htmlFragments = normalizeHtmlFragments(
+    Array.isArray(raw.htmlFragments) ? raw.htmlFragments : fallback.htmlFragments
+  );
+  const sections = syncHtmlFragments(
+    syncMarkdownSections(mergeSectionState(raw.sections), markdownSections),
+    htmlFragments
+  );
   const rawPreviewEditor = (raw.previewEditor && typeof raw.previewEditor === "object")
     ? raw.previewEditor
     : fallback.previewEditor;
@@ -215,10 +349,12 @@ function normalizeState(raw){
     classes: Array.isArray(raw.classes) && raw.classes.length ? raw.classes : fallback.classes,
     customLinks: Array.isArray(raw.customLinks) && raw.customLinks.length ? raw.customLinks : fallback.customLinks,
     markdownSections,
+    htmlFragments,
     previewEditor: {
       enabled: (typeof rawPreviewEditor.enabled === "boolean")
         ? rawPreviewEditor.enabled
         : !!fallback.previewEditor.enabled,
+      activeSectionId: String(rawPreviewEditor.activeSectionId || ""),
       richOverrides
     }
   };
@@ -317,6 +453,377 @@ function clampNumber(value, min, max, fallback) {
   return Math.min(max, Math.max(min, n));
 }
 
+function normalizeProjectName(rawName, fallback = PROJECT_DEFAULT_NAME) {
+  const trimmed = String(rawName || "").trim();
+  return trimmed || fallback;
+}
+
+function createProjectId() {
+  return `project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function captureProjectFieldValues() {
+  const values = {};
+  PROJECT_FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    values[id] = String(el.value ?? "");
+  });
+  return values;
+}
+
+function applyProjectFieldValues(fields) {
+  const source = (fields && typeof fields === "object") ? fields : {};
+  const defaults = projectFieldDefaults || {};
+
+  PROJECT_FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    if (Object.prototype.hasOwnProperty.call(source, id)) {
+      el.value = String(source[id] ?? "");
+    } else if (Object.prototype.hasOwnProperty.call(defaults, id)) {
+      el.value = String(defaults[id] ?? "");
+    }
+
+    if (el.tagName === "SELECT") {
+      const hasOption = Array.from(el.options || []).some(opt => opt.value === el.value);
+      if (!hasOption && el.options.length) el.value = el.options[0].value;
+    }
+  });
+}
+
+function normalizeProjectSnapshot(rawSnapshot) {
+  const fallbackState = deepClone(DEFAULT_STATE);
+  const fallbackPresets = deepClone(DEFAULT_PRESETS);
+  const source = (rawSnapshot && typeof rawSnapshot === "object") ? rawSnapshot : {};
+  const rawFields = (source.fields && typeof source.fields === "object") ? source.fields : {};
+  const fields = {};
+  PROJECT_FIELD_IDS.forEach(id => {
+    if (!Object.prototype.hasOwnProperty.call(rawFields, id)) return;
+    fields[id] = String(rawFields[id] ?? "");
+  });
+
+  return {
+    presets: normalizePresets(source.presets || fallbackPresets),
+    state: normalizeState(source.state || fallbackState),
+    fields
+  };
+}
+
+function buildSnapshotFromCurrentModels() {
+  return normalizeProjectSnapshot({
+    presets: deepClone(presets),
+    state: deepClone(state),
+    fields: captureProjectFieldValues()
+  });
+}
+
+function buildEmptyProjectSnapshot() {
+  return normalizeProjectSnapshot({
+    presets: deepClone(DEFAULT_PRESETS),
+    state: deepClone(DEFAULT_STATE),
+    fields: deepClone(projectFieldDefaults || {})
+  });
+}
+
+function normalizeProjectFilesystem(rawFs) {
+  const source = (rawFs && typeof rawFs === "object") ? rawFs : {};
+  const rawProjects = Array.isArray(source.projects) ? source.projects : [];
+  const projects = [];
+  const usedIds = new Set();
+
+  rawProjects.forEach((rawProject, idx) => {
+    if (!rawProject || typeof rawProject !== "object") return;
+    let id = String(rawProject.id || "").trim() || `project_${idx + 1}`;
+    while (usedIds.has(id)) id = `${id}_${usedIds.size + 1}`;
+    usedIds.add(id);
+
+    const name = normalizeProjectName(rawProject.name, `Project ${idx + 1}`);
+    const updatedAt = Number(rawProject.updatedAt);
+    const snapshot = normalizeProjectSnapshot(rawProject.snapshot);
+    projects.push({
+      id,
+      name,
+      updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
+      snapshot
+    });
+  });
+
+  return {
+    version: PROJECT_STORAGE_VERSION,
+    activeProjectId: String(source.activeProjectId || "").trim(),
+    projects
+  };
+}
+
+function saveProjectFilesystem() {
+  if (!projectFilesystem || typeof projectFilesystem !== "object") return;
+  localStorage.setItem(LS_KEYS.projectsFs, JSON.stringify(projectFilesystem));
+}
+
+function loadProjectFilesystem() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_KEYS.projectsFs));
+    return normalizeProjectFilesystem(raw);
+  } catch {
+    return normalizeProjectFilesystem(null);
+  }
+}
+
+function getProjectEntryById(projectId) {
+  if (!projectFilesystem || !Array.isArray(projectFilesystem.projects)) return null;
+  return projectFilesystem.projects.find(project => project.id === projectId) || null;
+}
+
+function getActiveProjectEntry() {
+  return getProjectEntryById(activeProjectId);
+}
+
+function renderProjectFilesystemUI() {
+  const select = document.getElementById("projectSelect");
+  const nameInput = document.getElementById("projectNameInput");
+  const deleteBtn = document.getElementById("deleteProjectBtn");
+  if (!select || !nameInput || !projectFilesystem) return;
+
+  select.innerHTML = projectFilesystem.projects
+    .map(project => `<option value="${escAttr(project.id)}">${escHtml(project.name)}</option>`)
+    .join("");
+
+  if (activeProjectId && getProjectEntryById(activeProjectId)) {
+    select.value = activeProjectId;
+  } else if (projectFilesystem.projects[0]) {
+    activeProjectId = projectFilesystem.projects[0].id;
+    select.value = activeProjectId;
+  }
+
+  const active = getActiveProjectEntry();
+  nameInput.value = active?.name || "";
+  if (deleteBtn) deleteBtn.disabled = projectFilesystem.projects.length <= 1;
+}
+
+function persistLegacyStorageFromModels() {
+  localStorage.setItem(LS_KEYS.presets, JSON.stringify(presets));
+  localStorage.setItem(LS_KEYS.state, JSON.stringify(state));
+}
+
+function syncActiveProjectSnapshot(options = {}) {
+  if (applyingProjectSnapshot) return;
+  if (!projectFilesystem || !activeProjectId) return;
+  const active = getActiveProjectEntry();
+  if (!active) return;
+
+  active.snapshot = buildSnapshotFromCurrentModels();
+  active.updatedAt = Date.now();
+  projectFilesystem.activeProjectId = activeProjectId;
+  saveProjectFilesystem();
+  persistLegacyStorageFromModels();
+  if (!options.skipUi) renderProjectFilesystemUI();
+}
+
+function hydrateUiFromCurrentModels(snapshotFields = null) {
+  renderAdminAll();
+  renderHighlightMoodOptions();
+  applyProjectFieldValues(snapshotFields);
+  syncFeatureImageWidthValue();
+  bindAutoResizeTextareas(document);
+  renderMarkdownSectionsUI();
+  renderHtmlFragmentsUI();
+  renderSectionsUI();
+  renderDiscussionUI();
+  renderClassesUI();
+  renderCustomLinksUI();
+  applyPreviewEditModeUI();
+  generateHtml();
+}
+
+function switchToProject(projectId, options = {}) {
+  const opts = {
+    persistCurrent: true,
+    ...options
+  };
+
+  if (!projectFilesystem) return false;
+  if (opts.persistCurrent) syncActiveProjectSnapshot({ skipUi: true });
+
+  const nextProject = getProjectEntryById(projectId);
+  if (!nextProject) return false;
+
+  activeProjectId = nextProject.id;
+  projectFilesystem.activeProjectId = activeProjectId;
+
+  applyingProjectSnapshot = true;
+  presets = normalizePresets(nextProject.snapshot?.presets);
+  state = normalizeState(nextProject.snapshot?.state);
+  ensurePreviewEditorState();
+  hydrateUiFromCurrentModels(nextProject.snapshot?.fields || {});
+  applyingProjectSnapshot = false;
+
+  syncActiveProjectSnapshot({ skipUi: true });
+  renderProjectFilesystemUI();
+  return true;
+}
+
+function makeUniqueProjectName(name, ignoreProjectId = "") {
+  const baseName = normalizeProjectName(name, PROJECT_DEFAULT_NAME);
+  let candidate = baseName;
+  let counter = 2;
+
+  while (projectFilesystem?.projects?.some(project =>
+    project.id !== ignoreProjectId &&
+    String(project.name || "").toLowerCase() === candidate.toLowerCase()
+  )) {
+    candidate = `${baseName} (${counter})`;
+    counter += 1;
+  }
+  return candidate;
+}
+
+function formatTimestampForFilename(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+function downloadJsonFile(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportActiveProjectAsJson() {
+  const active = getActiveProjectEntry();
+  if (!active) return false;
+
+  syncActiveProjectSnapshot({ skipUi: true });
+  const payload = {
+    format: PROJECT_EXPORT_FORMAT_SINGLE,
+    exportedAt: new Date().toISOString(),
+    project: {
+      name: active.name,
+      snapshot: active.snapshot
+    }
+  };
+  const slug = slugify(active.name || "newsletter-project");
+  const filename = `${slug}-${formatTimestampForFilename()}.json`;
+  downloadJsonFile(filename, payload);
+  return true;
+}
+
+function extractImportedProjectRecords(rawPayload) {
+  const source = (rawPayload && typeof rawPayload === "object") ? rawPayload : null;
+  if (!source) return [];
+
+  if (source.format === PROJECT_EXPORT_FORMAT_SINGLE && source.project && typeof source.project === "object") {
+    return [source.project];
+  }
+  if (source.format === PROJECT_EXPORT_FORMAT_MULTI && Array.isArray(source.projects)) {
+    return source.projects;
+  }
+  if (Array.isArray(source.projects)) {
+    return source.projects;
+  }
+  if (source.project && typeof source.project === "object") {
+    return [source.project];
+  }
+  if (source.snapshot && typeof source.snapshot === "object") {
+    return [source];
+  }
+  if ((source.state && typeof source.state === "object") || (source.presets && typeof source.presets === "object")) {
+    return [source];
+  }
+  return [];
+}
+
+function importProjectsFromPayload(rawPayload) {
+  if (!projectFilesystem) return [];
+  const records = extractImportedProjectRecords(rawPayload);
+  if (!records.length) return [];
+
+  const importedProjectIds = [];
+  records.forEach((record, idx) => {
+    const source = (record && typeof record === "object") ? record : {};
+    const snapshotSource = (source.snapshot && typeof source.snapshot === "object") ? source.snapshot : source;
+    const snapshot = normalizeProjectSnapshot(snapshotSource);
+    const fallbackName = `Imported Project ${projectFilesystem.projects.length + idx + 1}`;
+    const uniqueName = makeUniqueProjectName(normalizeProjectName(source.name, fallbackName));
+    const project = {
+      id: createProjectId(),
+      name: uniqueName,
+      updatedAt: Date.now(),
+      snapshot
+    };
+    projectFilesystem.projects.push(project);
+    importedProjectIds.push(project.id);
+  });
+
+  saveProjectFilesystem();
+  return importedProjectIds;
+}
+
+function createProjectFromCurrent(name) {
+  const baseName = normalizeProjectName(name, `Project ${projectFilesystem.projects.length + 1}`);
+  const uniqueName = makeUniqueProjectName(baseName);
+  const project = {
+    id: createProjectId(),
+    name: uniqueName,
+    updatedAt: Date.now(),
+    snapshot: buildSnapshotFromCurrentModels()
+  };
+  projectFilesystem.projects.push(project);
+  return project;
+}
+
+function createBlankProject(name) {
+  const baseName = normalizeProjectName(name, `Project ${projectFilesystem.projects.length + 1}`);
+  const uniqueName = makeUniqueProjectName(baseName);
+  const project = {
+    id: createProjectId(),
+    name: uniqueName,
+    updatedAt: Date.now(),
+    snapshot: buildEmptyProjectSnapshot()
+  };
+  projectFilesystem.projects.push(project);
+  return project;
+}
+
+function initProjectFilesystem() {
+  projectFilesystem = loadProjectFilesystem();
+
+  if (!projectFilesystem.projects.length) {
+    const firstProject = {
+      id: createProjectId(),
+      name: PROJECT_DEFAULT_NAME,
+      updatedAt: Date.now(),
+      snapshot: normalizeProjectSnapshot({
+        presets: deepClone(presets),
+        state: deepClone(state),
+        fields: captureProjectFieldValues()
+      })
+    };
+    projectFilesystem.projects = [firstProject];
+    projectFilesystem.activeProjectId = firstProject.id;
+    saveProjectFilesystem();
+  }
+
+  activeProjectId = projectFilesystem.activeProjectId;
+  if (!getProjectEntryById(activeProjectId)) {
+    activeProjectId = projectFilesystem.projects[0]?.id || "";
+    projectFilesystem.activeProjectId = activeProjectId;
+  }
+
+  const active = getActiveProjectEntry();
+  if (active?.snapshot) {
+    presets = normalizePresets(active.snapshot.presets);
+    state = normalizeState(active.snapshot.state);
+  }
+}
+
 function renderHighlightMoodOptions(){
   const select = document.getElementById("highlight_mood");
   if (!select) return;
@@ -413,7 +920,10 @@ const ALLOWED_RICH_TAGS = new Set(["p", "br", "strong", "em", "ul", "ol", "li", 
 
 function ensurePreviewEditorState() {
   if (!state.previewEditor || typeof state.previewEditor !== "object") {
-    state.previewEditor = { enabled: false, richOverrides: {} };
+    state.previewEditor = { enabled: false, activeSectionId: "", richOverrides: {} };
+  }
+  if (typeof state.previewEditor.activeSectionId !== "string") {
+    state.previewEditor.activeSectionId = "";
   }
   if (!state.previewEditor.richOverrides || typeof state.previewEditor.richOverrides !== "object") {
     state.previewEditor.richOverrides = {};
@@ -508,6 +1018,7 @@ function applyPlainPreviewEdit(key, textValue) {
     const input = document.getElementById(mappedInputId);
     if (!input) return false;
     input.value = value;
+    saveState();
     return true;
   }
 
@@ -522,6 +1033,21 @@ function applyPlainPreviewEdit(key, textValue) {
     if (sectionEntry) sectionEntry.label = markdownSectionSummary(section, sectionIndex);
     saveState();
     renderMarkdownSectionsUI();
+    renderSectionsUI();
+    return true;
+  }
+
+  const htmlFragmentLabelMatch = String(key || "").match(/^htmlFragment\.([^.]+)\.label$/);
+  if (htmlFragmentLabelMatch) {
+    const fragmentId = htmlFragmentLabelMatch[1];
+    const fragment = state.htmlFragments.find(x => x.id === fragmentId);
+    if (!fragment) return false;
+    fragment.label = value;
+    const fragmentIndex = state.htmlFragments.findIndex(x => x.id === fragmentId);
+    const sectionEntry = state.sections.find(x => x.id === fragmentId);
+    if (sectionEntry) sectionEntry.label = htmlFragmentSummary(fragment, fragmentIndex);
+    saveState();
+    renderHtmlFragmentsUI();
     renderSectionsUI();
     return true;
   }
@@ -577,12 +1103,19 @@ function addPreviewEditorStyles(doc) {
   const style = doc.createElement("style");
   style.id = "previewEditorStyles";
   style.textContent = `
-    [data-preview-library-box]{
+    [data-preview-right-rail]{
       position:fixed;
       top:16px;
       right:16px;
       width:min(320px, calc(100vw - 32px));
-      max-height:42vh;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      z-index:2147483646;
+    }
+    [data-preview-library-box]{
+      width:100%;
+      max-height:34vh;
       overflow:auto;
       border:1px solid #d0d5dd;
       border-radius:12px;
@@ -624,6 +1157,52 @@ function addPreviewEditorStyles(doc) {
       font-family:'Lexend', Helvetica, Arial, sans-serif;
       font-size:12px;
       color:#667085;
+    }
+    [data-preview-element-box]{
+      width:100%;
+      max-height:34vh;
+      overflow:auto;
+      border:1px solid #d0d5dd;
+      border-radius:12px;
+      background:#ffffff;
+      padding:10px 12px;
+      box-shadow:0 1px 3px rgba(16,24,40,.06);
+    }
+    [data-preview-element-title]{
+      font-family:'Lexend', Helvetica, Arial, sans-serif;
+      font-size:12px;
+      letter-spacing:.3px;
+      font-weight:800;
+      color:#344054;
+      margin-bottom:8px;
+    }
+    [data-preview-element-list]{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+    }
+    [data-element-library-item]{
+      display:inline-block;
+      border:1px solid #d0d5dd;
+      border-radius:999px;
+      padding:5px 10px;
+      font-family:'Lexend', Helvetica, Arial, sans-serif;
+      font-size:12px;
+      font-weight:700;
+      color:#344054;
+      background:#f8fafc;
+      cursor:grab;
+      user-select:none;
+    }
+    [data-element-library-item]:active{
+      cursor:grabbing;
+    }
+    [data-preview-element-hint]{
+      font-family:'Lexend', Helvetica, Arial, sans-serif;
+      font-size:12px;
+      color:#667085;
+      margin-top:8px;
+      line-height:1.45;
     }
     [data-highlight-author-tray]{
       position:fixed;
@@ -834,6 +1413,11 @@ function addPreviewEditorStyles(doc) {
     [data-section-block].dragging{
       opacity:.45;
     }
+    [data-section-block].element-drag-over [data-section-shell]{
+      outline:2px solid #227f9c;
+      outline-offset:3px;
+      border-radius:12px;
+    }
     [data-section-shell]{
       position:relative;
     }
@@ -972,152 +1556,31 @@ function bindPreviewEditorInteractions() {
     doc.querySelectorAll("[data-section-dropzone-index].drag-over").forEach(node => {
       node.classList.remove("drag-over");
     });
+    doc.querySelectorAll("[data-section-block].element-drag-over").forEach(node => {
+      node.classList.remove("element-drag-over");
+    });
   };
   let activeDragPayload = null;
   const findSectionBlock = (sectionId) => {
     return Array.from(doc.querySelectorAll("[data-section-block]"))
       .find(node => String(node.dataset.sectionId || "") === sectionId);
   };
+  const rightRail = doc.createElement("div");
+  rightRail.dataset.previewRightRail = "true";
   const sectionLibraryWrap = doc.createElement("div");
   sectionLibraryWrap.innerHTML = buildPreviewSectionLibraryHtml();
   const sectionLibrary = sectionLibraryWrap.firstElementChild;
   if (sectionLibrary) {
-    doc.body.appendChild(sectionLibrary);
+    rightRail.appendChild(sectionLibrary);
   }
-  const highlightTrayWrap = doc.createElement("div");
-  highlightTrayWrap.innerHTML = buildHighlightAuthorTrayHtml();
-  const highlightTray = highlightTrayWrap.firstElementChild;
-  if (highlightTray) {
-    doc.body.appendChild(highlightTray);
-
-    const usernameInput = highlightTray.querySelector('[data-highlight-author-k="username"]');
-    const avatarInput = highlightTray.querySelector('[data-highlight-author-k="avatar"]');
-    const moodSelect = highlightTray.querySelector('[data-highlight-author-k="mood"]');
-    const clearBtn = highlightTray.querySelector("[data-highlight-author-clear]");
-    const sourceUsernameInput = document.getElementById("highlight_username");
-    const sourceAvatarInput = document.getElementById("highlight_avatar");
-    const sourceMoodSelect = document.getElementById("highlight_mood");
-
-    if (moodSelect && sourceMoodSelect) {
-      const hasOption = Array.from(moodSelect.options).some(opt => opt.value === sourceMoodSelect.value);
-      moodSelect.value = hasOption ? sourceMoodSelect.value : (moodSelect.options[0]?.value || "none");
-    }
-
-    if (usernameInput && sourceUsernameInput) {
-      usernameInput.addEventListener("input", () => {
-        sourceUsernameInput.value = usernameInput.value;
-        autoGenerateHtml();
-      });
-    }
-
-    if (avatarInput && sourceAvatarInput) {
-      avatarInput.addEventListener("input", () => {
-        sourceAvatarInput.value = avatarInput.value;
-        autoGenerateHtml();
-      });
-    }
-
-    if (moodSelect && sourceMoodSelect) {
-      moodSelect.addEventListener("input", () => {
-        sourceMoodSelect.value = moodSelect.value;
-        autoGenerateHtml();
-      });
-    }
-
-    if (clearBtn && sourceUsernameInput && sourceAvatarInput && sourceMoodSelect) {
-      clearBtn.addEventListener("click", () => {
-        sourceUsernameInput.value = "";
-        sourceAvatarInput.value = "";
-        sourceMoodSelect.value = "none";
-        if (usernameInput) usernameInput.value = "";
-        if (avatarInput) avatarInput.value = "";
-        if (moodSelect) moodSelect.value = "none";
-        autoGenerateHtml();
-      });
-    }
+  const elementLibraryWrap = doc.createElement("div");
+  elementLibraryWrap.innerHTML = buildPreviewElementLibraryHtml();
+  const elementLibrary = elementLibraryWrap.firstElementChild;
+  if (elementLibrary) {
+    rightRail.appendChild(elementLibrary);
   }
-  const discussionTrayWrap = doc.createElement("div");
-  discussionTrayWrap.innerHTML = buildDiscussionEditorTrayHtml();
-  const discussionTray = discussionTrayWrap.firstElementChild;
-  if (discussionTray) {
-    doc.body.appendChild(discussionTray);
-
-    const discussionHeaderInput = discussionTray.querySelector("[data-discussion-header]");
-    const sourceDiscussionHeaderInput = document.getElementById("discussion_label");
-    if (discussionHeaderInput && sourceDiscussionHeaderInput) {
-      discussionHeaderInput.addEventListener("input", () => {
-        sourceDiscussionHeaderInput.value = discussionHeaderInput.value;
-        autoGenerateHtml();
-      });
-    }
-
-    const enableDiscussionBtn = discussionTray.querySelector("[data-discussion-tray-enable]");
-    if (enableDiscussionBtn) {
-      enableDiscussionBtn.addEventListener("click", () => {
-        const enabledCount = state.sections.filter(section => section.enabled).length;
-        if (insertDisabledSectionAtIndex("discussion", enabledCount)) {
-          saveState();
-          renderSectionsUI();
-          renderDiscussionUI();
-          generateHtml();
-        }
-      });
-    }
-
-    discussionTray.querySelectorAll("input[data-discussion-k], select[data-discussion-k]").forEach(field => {
-      field.addEventListener("input", () => {
-        const idx = Number(field.dataset.i);
-        const key = String(field.dataset.discussionK || "");
-        if (!Number.isInteger(idx) || idx < 0 || idx >= state.discussion.length || !key) return;
-        state.discussion[idx][key] = field.value;
-        saveState();
-        renderDiscussionUI();
-        autoGenerateHtml();
-      });
-    });
-
-    discussionTray.querySelectorAll("[data-discussion-tray-clear-post]").forEach(button => {
-      button.addEventListener("click", () => {
-        const idx = Number(button.dataset.discussionTrayClearPost);
-        if (!Number.isInteger(idx) || idx < 0 || idx >= state.discussion.length) return;
-        state.discussion[idx] = blankDiscussionPost();
-        saveState();
-        renderDiscussionUI();
-        generateHtml();
-      });
-    });
-
-    discussionTray.querySelectorAll("[data-discussion-tray-remove]").forEach(button => {
-      button.addEventListener("click", () => {
-        const idx = Number(button.dataset.discussionTrayRemove);
-        if (!Number.isInteger(idx) || idx < 0 || idx >= state.discussion.length) return;
-        state.discussion.splice(idx, 1);
-        if (state.discussion.length === 0) state.discussion.push(blankDiscussionPost());
-        saveState();
-        renderDiscussionUI();
-        generateHtml();
-      });
-    });
-
-    const addPostBtn = discussionTray.querySelector("[data-discussion-tray-add]");
-    if (addPostBtn) {
-      addPostBtn.addEventListener("click", () => {
-        state.discussion.push(blankDiscussionPost());
-        saveState();
-        renderDiscussionUI();
-        generateHtml();
-      });
-    }
-
-    const clearAllBtn = discussionTray.querySelector("[data-discussion-tray-clear-all]");
-    if (clearAllBtn) {
-      clearAllBtn.addEventListener("click", () => {
-        state.discussion = [blankDiscussionPost()];
-        saveState();
-        renderDiscussionUI();
-        generateHtml();
-      });
-    }
+  if (rightRail.childElementCount > 0) {
+    doc.body.appendChild(rightRail);
   }
   const contextMenu = doc.createElement("div");
   contextMenu.dataset.previewContextMenu = "true";
@@ -1178,6 +1641,23 @@ function bindPreviewEditorInteractions() {
     });
   });
 
+  doc.querySelectorAll("[data-element-library-item]").forEach(item => {
+    const elementType = String(item.dataset.elementLibraryItem || "");
+    if (!elementType) return;
+    item.setAttribute("draggable", "true");
+
+    item.addEventListener("dragstart", (event) => {
+      event.dataTransfer?.setData("text/plain", `element:${elementType}`);
+      event.dataTransfer.effectAllowed = "copy";
+      activeDragPayload = { kind: "element", elementType };
+    });
+
+    item.addEventListener("dragend", () => {
+      activeDragPayload = null;
+      clearDropHighlights();
+    });
+  });
+
   doc.querySelectorAll("[data-section-remove-btn]").forEach(button => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -1194,9 +1674,10 @@ function bindPreviewEditorInteractions() {
 
   doc.querySelectorAll("[data-section-dropzone-index]").forEach(zone => {
     zone.addEventListener("dragover", (event) => {
-      if (!(activeDragPayload || previewDragPayloadFromEvent(event))) return;
+      const payload = activeDragPayload || previewDragPayloadFromEvent(event);
+      if (!payload) return;
       event.preventDefault();
-      event.dataTransfer.dropEffect = "move";
+      event.dataTransfer.dropEffect = payload.kind === "element" ? "copy" : "move";
       zone.classList.add("drag-over");
     });
 
@@ -1220,19 +1701,86 @@ function bindPreviewEditorInteractions() {
 
       const targetIndex = Number(zone.dataset.sectionDropzoneIndex || "0");
       let changed = false;
+      let activeSectionId = "";
 
       if (payload.kind === "existing") {
         changed = moveEnabledSectionToIndex(payload.sectionId, targetIndex);
+        activeSectionId = payload.sectionId;
       } else if (payload.kind === "library") {
-        changed = insertLibraryItemAtIndex(payload.sectionId, targetIndex);
+        const insertedSectionId = insertLibraryItemAtIndex(payload.sectionId, targetIndex);
+        changed = !!insertedSectionId;
+        activeSectionId = insertedSectionId;
+      } else if (payload.kind === "element") {
+        const insertedSectionId = insertElementLibraryItemAtIndex(payload.elementType, targetIndex);
+        changed = !!insertedSectionId;
+        activeSectionId = insertedSectionId;
       }
 
       if (!changed) return;
       saveState();
       renderMarkdownSectionsUI();
+      renderHtmlFragmentsUI();
       renderSectionsUI();
+      if (activeSectionId) setActivePreviewSection(activeSectionId);
       generateHtml();
     });
+  });
+
+  doc.querySelectorAll("[data-section-block][data-section-id]").forEach(block => {
+    const sectionId = String(block.dataset.sectionId || "");
+    if (!sectionId) return;
+
+    block.addEventListener("dragover", (event) => {
+      const payload = activeDragPayload || previewDragPayloadFromEvent(event);
+      if (!payload || payload.kind !== "element") return;
+      if (!sectionSupportsElementDrop(sectionId, payload.elementType)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      block.classList.add("element-drag-over");
+    });
+
+    block.addEventListener("dragenter", (event) => {
+      const payload = activeDragPayload || previewDragPayloadFromEvent(event);
+      if (!payload || payload.kind !== "element") return;
+      if (!sectionSupportsElementDrop(sectionId, payload.elementType)) return;
+      block.classList.add("element-drag-over");
+    });
+
+    block.addEventListener("dragleave", (event) => {
+      if (!block.contains(event.relatedTarget)) {
+        block.classList.remove("element-drag-over");
+      }
+    });
+
+    block.addEventListener("drop", (event) => {
+      const payload = previewDragPayloadFromEvent(event) || activeDragPayload;
+      if (!payload || payload.kind !== "element") return;
+      if (!sectionSupportsElementDrop(sectionId, payload.elementType)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      activeDragPayload = null;
+      clearDropHighlights();
+
+      let changed = false;
+      if (payload.elementType === ELEMENT_LIBRARY_ITEM_CTA) {
+        changed = addCtaLinkForSection(sectionId);
+      } else if (payload.elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
+        changed = addImageForSection(sectionId);
+      }
+
+      if (!changed) return;
+      setActivePreviewSection(sectionId, { save: false });
+      saveState();
+    });
+  });
+
+  doc.querySelectorAll("[data-section-block][data-section-id]").forEach(block => {
+    block.addEventListener("click", (event) => {
+      const sectionId = String(block.dataset.sectionId || "");
+      if (!sectionId) return;
+      if (event.target.closest("[data-section-remove-btn]")) return;
+      setActivePreviewSection(sectionId);
+    }, true);
   });
 
   doc.addEventListener("contextmenu", (event) => {
@@ -1245,6 +1793,7 @@ function bindPreviewEditorInteractions() {
     event.preventDefault();
     const sectionId = String(block.dataset.sectionId || "");
     contextSectionId = sectionId;
+    setActivePreviewSection(sectionId);
     const supported = sectionSupportsInlineCta(sectionId);
     const supportsHighlightAuthorMeta = sectionId === "highlight";
     const sectionIdx = state.sections.findIndex(section => section.id === sectionId);
@@ -1332,6 +1881,85 @@ function bindPreviewEditorInteractions() {
   });
 }
 
+function ensurePreviewSectionTrayEmptyState(panel) {
+  if (!panel) return null;
+  let emptyState = panel.querySelector("[data-preview-section-tray-empty]");
+  if (!emptyState) {
+    emptyState = document.createElement("div");
+    emptyState.dataset.previewSectionTrayEmpty = "true";
+    emptyState.className = "small";
+    emptyState.textContent = "Click any section in the preview to edit its card.";
+    panel.appendChild(emptyState);
+  }
+  return emptyState;
+}
+
+function applyPreviewSectionTrayUI() {
+  const panel = document.getElementById("editorPanel");
+  if (!panel) return;
+
+  const editor = ensurePreviewEditorState();
+  const editMode = !!editor.enabled;
+  const blockById = new Map(
+    Array.from(panel.querySelectorAll("details[data-section-id]"))
+      .map(block => [String(block.dataset.sectionId || ""), block])
+  );
+  const enabledSectionIds = new Set(
+    state.sections
+      .filter(section => section.enabled)
+      .map(section => String(section.id || ""))
+  );
+
+  let activeSectionId = String(editor.activeSectionId || "");
+  if (!activeSectionId || !enabledSectionIds.has(activeSectionId) || !blockById.has(activeSectionId)) {
+    activeSectionId = "";
+    editor.activeSectionId = "";
+  }
+
+  const emptyState = ensurePreviewSectionTrayEmptyState(panel);
+  panel.classList.toggle("preview-section-tray-mode", editMode);
+
+  Array.from(panel.children).forEach(child => {
+    if (child.matches("h2")) {
+      child.hidden = false;
+      return;
+    }
+    if (child.matches("details[data-section-id]")) return;
+    if (child === emptyState) return;
+    child.hidden = editMode;
+  });
+
+  blockById.forEach((block, sectionId) => {
+    if (!editMode) {
+      block.hidden = !enabledSectionIds.has(sectionId);
+      return;
+    }
+    const visible = !!activeSectionId && sectionId === activeSectionId;
+    block.hidden = !visible;
+    if (visible) block.open = true;
+  });
+
+  if (emptyState) {
+    emptyState.hidden = !(editMode && !activeSectionId);
+  }
+}
+
+function setActivePreviewSection(sectionId, options = {}) {
+  const opts = {
+    save: true,
+    ...options
+  };
+  const editor = ensurePreviewEditorState();
+  const nextId = String(sectionId || "").trim();
+  if (editor.activeSectionId === nextId) {
+    applyPreviewSectionTrayUI();
+    return;
+  }
+  editor.activeSectionId = nextId;
+  if (opts.save) saveState();
+  applyPreviewSectionTrayUI();
+}
+
 function applyPreviewEditModeUI() {
   const enabled = !!ensurePreviewEditorState().enabled;
   document.body.classList.toggle("preview-edit-mode", enabled);
@@ -1346,6 +1974,8 @@ function applyPreviewEditModeUI() {
   if (modeStatus) {
     modeStatus.textContent = enabled ? "Edit mode" : "Preview mode";
   }
+
+  applyPreviewSectionTrayUI();
 }
 
 function setPreviewEditMode(enabled) {
@@ -1356,6 +1986,9 @@ function setPreviewEditMode(enabled) {
     return;
   }
   editor.enabled = next;
+  if (next) {
+    editor.activeSectionId = "";
+  }
   saveState();
   applyPreviewEditModeUI();
   generateHtml();
@@ -1419,8 +2052,13 @@ function insertDisabledSectionAtIndex(sectionId, targetEnabledIndex) {
   return true;
 }
 
-function createBlankMarkdownSectionAtIndex(targetEnabledIndex) {
-  const section = blankMarkdownSection();
+function createBlankMarkdownSectionAtIndex(targetEnabledIndex, initialValues = null) {
+  const seed = (initialValues && typeof initialValues === "object") ? initialValues : {};
+  const section = {
+    ...blankMarkdownSection(),
+    ...seed
+  };
+  section.imageWidth = clampNumber(section.imageWidth, 220, 560, 520);
   state.markdownSections.push(section);
 
   const markdownIndex = state.markdownSections.length - 1;
@@ -1430,14 +2068,31 @@ function createBlankMarkdownSectionAtIndex(targetEnabledIndex) {
     enabled: true
   };
   insertSectionAtEnabledIndex(sectionEntry, targetEnabledIndex);
-  return true;
+  return section.id;
+}
+
+function createBlankHtmlFragmentAtIndex(targetEnabledIndex) {
+  const fragment = blankHtmlFragment();
+  state.htmlFragments.push(fragment);
+
+  const fragmentIndex = state.htmlFragments.length - 1;
+  const sectionEntry = {
+    id: fragment.id,
+    label: htmlFragmentSummary(fragment, fragmentIndex),
+    enabled: true
+  };
+  insertSectionAtEnabledIndex(sectionEntry, targetEnabledIndex);
+  return fragment.id;
 }
 
 function insertLibraryItemAtIndex(itemId, targetEnabledIndex) {
   if (itemId === LIBRARY_ITEM_NEW_MARKDOWN) {
     return createBlankMarkdownSectionAtIndex(targetEnabledIndex);
   }
-  return insertDisabledSectionAtIndex(itemId, targetEnabledIndex);
+  if (itemId === LIBRARY_ITEM_NEW_HTML_FRAGMENT) {
+    return createBlankHtmlFragmentAtIndex(targetEnabledIndex);
+  }
+  return insertDisabledSectionAtIndex(itemId, targetEnabledIndex) ? itemId : "";
 }
 
 function isSectionEnabled(sectionId) {
@@ -1454,10 +2109,15 @@ function disableSectionById(sectionId) {
 
 function previewDragPayloadFromEvent(event) {
   const payload = String(event?.dataTransfer?.getData("text/plain") || "");
-  const [kind, sectionId] = payload.split(":");
-  if (!sectionId) return null;
-  if (kind !== "existing" && kind !== "library") return null;
-  return { kind, sectionId };
+  const [kind, itemId] = payload.split(":");
+  if (!itemId) return null;
+  if (kind === "existing" || kind === "library") {
+    return { kind, sectionId: itemId };
+  }
+  if (kind === "element") {
+    return { kind, elementType: itemId };
+  }
+  return null;
 }
 
 function sectionSupportsInlineCta(sectionId) {
@@ -1477,12 +2137,9 @@ function normalizeCtaUrl(rawUrl) {
   return `https://${trimmed}`;
 }
 
-function promptForCtaValues(sectionId) {
-  const sectionIdx = state.sections.findIndex(section => section.id === sectionId);
-  const sectionEntry = sectionIdx >= 0 ? state.sections[sectionIdx] : null;
-  const sectionLabel = sectionDisplayLabel(sectionEntry, sectionIdx >= 0 ? sectionIdx : 0) || sectionId;
-
-  const text = window.prompt(`CTA text for "${sectionLabel}"`, "Learn more");
+function promptForCtaValuesForLabel(sectionLabel) {
+  const displayLabel = String(sectionLabel || "").trim() || "section";
+  const text = window.prompt(`CTA text for "${displayLabel}"`, "Learn more");
   if (text === null) return null;
 
   const urlInput = window.prompt("CTA URL", "https://");
@@ -1496,6 +2153,221 @@ function promptForCtaValues(sectionId) {
   }
 
   return { ctaText, ctaUrl };
+}
+
+function promptForCtaValues(sectionId) {
+  const sectionIdx = state.sections.findIndex(section => section.id === sectionId);
+  const sectionEntry = sectionIdx >= 0 ? state.sections[sectionIdx] : null;
+  const sectionLabel = sectionDisplayLabel(sectionEntry, sectionIdx >= 0 ? sectionIdx : 0) || sectionId;
+  return promptForCtaValuesForLabel(sectionLabel);
+}
+
+function normalizeImageUrl(rawUrl) {
+  return normalizeOptionalHttpUrl(rawUrl);
+}
+
+function sectionSupportsInlineImage(sectionId) {
+  if (!sectionId) return false;
+  return (
+    isMarkdownSectionId(sectionId) ||
+    sectionId === "featureSlot" ||
+    sectionId === "lsatPodcast" ||
+    sectionId === "admissionsPodcast" ||
+    sectionId === "extraPodcast"
+  );
+}
+
+function sectionSupportsElementDrop(sectionId, elementType) {
+  if (!sectionId) return false;
+  if (elementType === ELEMENT_LIBRARY_ITEM_CTA) return sectionSupportsInlineCta(sectionId);
+  if (elementType === ELEMENT_LIBRARY_ITEM_IMAGE) return sectionSupportsInlineImage(sectionId);
+  return false;
+}
+
+function getSectionImageDefaults(sectionId) {
+  if (isMarkdownSectionId(sectionId)) {
+    const section = state.markdownSections.find(item => item.id === sectionId);
+    if (!section) return null;
+    return {
+      imageUrl: String(section.imageUrl || ""),
+      imageAlt: String(section.imageAlt || ""),
+      imageLinkUrl: String(section.imageLinkUrl || ""),
+      imageWidth: clampNumber(section.imageWidth, 220, 560, 520)
+    };
+  }
+  if (sectionId === "featureSlot") {
+    return {
+      imageUrl: String(document.getElementById("feature_img")?.value || ""),
+      imageAlt: String(document.getElementById("feature_alt")?.value || ""),
+      imageLinkUrl: String(document.getElementById("feature_img_link")?.value || ""),
+      imageWidth: clampNumber(document.getElementById("feature_img_width")?.value, 220, 560, 520)
+    };
+  }
+  if (sectionId === "lsatPodcast") {
+    return {
+      imageUrl: String(document.getElementById("lsat_img")?.value || ""),
+      imageAlt: String(document.getElementById("lsat_alt")?.value || ""),
+      imageLinkUrl: "",
+      imageWidth: 520
+    };
+  }
+  if (sectionId === "admissionsPodcast") {
+    return {
+      imageUrl: String(document.getElementById("adm_img")?.value || ""),
+      imageAlt: String(document.getElementById("adm_alt")?.value || ""),
+      imageLinkUrl: "",
+      imageWidth: 520
+    };
+  }
+  if (sectionId === "extraPodcast") {
+    return {
+      imageUrl: String(document.getElementById("extra_img")?.value || ""),
+      imageAlt: String(document.getElementById("extra_alt")?.value || ""),
+      imageLinkUrl: "",
+      imageWidth: 520
+    };
+  }
+  return null;
+}
+
+function promptForImageValuesForLabel(sectionLabel, defaults = {}) {
+  const displayLabel = String(sectionLabel || "").trim() || "section";
+  const current = (defaults && typeof defaults === "object") ? defaults : {};
+
+  const imageUrlInput = window.prompt(
+    `Image URL for "${displayLabel}"`,
+    String(current.imageUrl || "https://")
+  );
+  if (imageUrlInput === null) return null;
+  const imageUrl = normalizeImageUrl(imageUrlInput);
+  if (!imageUrl) {
+    window.alert("Image URL is required.");
+    return null;
+  }
+
+  const imageAltInput = window.prompt(
+    "Image alt text (optional)",
+    String(current.imageAlt || "")
+  );
+  if (imageAltInput === null) return null;
+
+  const imageLinkInput = window.prompt(
+    "Image link URL (optional)",
+    String(current.imageLinkUrl || "")
+  );
+  if (imageLinkInput === null) return null;
+
+  const widthInput = window.prompt(
+    "Image width in px (220-560, optional)",
+    String(current.imageWidth || 520)
+  );
+  if (widthInput === null) return null;
+
+  const widthRaw = String(widthInput || "").trim();
+  const imageWidth = widthRaw
+    ? clampNumber(widthRaw, 220, 560, 520)
+    : clampNumber(current.imageWidth, 220, 560, 520);
+
+  return {
+    imageUrl,
+    imageAlt: String(imageAltInput || "").trim(),
+    imageLinkUrl: normalizeImageUrl(imageLinkInput),
+    imageWidth
+  };
+}
+
+function promptForImageValues(sectionId) {
+  const sectionIdx = state.sections.findIndex(section => section.id === sectionId);
+  const sectionEntry = sectionIdx >= 0 ? state.sections[sectionIdx] : null;
+  const sectionLabel = sectionDisplayLabel(sectionEntry, sectionIdx >= 0 ? sectionIdx : 0) || sectionId;
+  const defaults = getSectionImageDefaults(sectionId) || {};
+  return promptForImageValuesForLabel(sectionLabel, defaults);
+}
+
+function addImageForSection(sectionId) {
+  if (!sectionSupportsInlineImage(sectionId)) return false;
+  const values = promptForImageValues(sectionId);
+  if (!values) return false;
+
+  let changed = false;
+  if (isMarkdownSectionId(sectionId)) {
+    const section = state.markdownSections.find(item => item.id === sectionId);
+    if (!section) return false;
+    section.imageUrl = values.imageUrl;
+    section.imageAlt = values.imageAlt;
+    section.imageLinkUrl = values.imageLinkUrl;
+    section.imageWidth = values.imageWidth;
+    renderMarkdownSectionsUI();
+    changed = true;
+  } else if (sectionId === "featureSlot") {
+    const featureImg = document.getElementById("feature_img");
+    const featureAlt = document.getElementById("feature_alt");
+    const featureImgLink = document.getElementById("feature_img_link");
+    const featureImgWidth = document.getElementById("feature_img_width");
+    if (!featureImg || !featureAlt || !featureImgLink || !featureImgWidth) return false;
+    featureImg.value = values.imageUrl;
+    featureAlt.value = values.imageAlt;
+    featureImgLink.value = values.imageLinkUrl;
+    featureImgWidth.value = String(clampNumber(values.imageWidth, 220, 520, 520));
+    syncFeatureImageWidthValue();
+    changed = true;
+  } else if (sectionId === "lsatPodcast") {
+    const image = document.getElementById("lsat_img");
+    const alt = document.getElementById("lsat_alt");
+    if (!image || !alt) return false;
+    image.value = values.imageUrl;
+    alt.value = values.imageAlt;
+    changed = true;
+  } else if (sectionId === "admissionsPodcast") {
+    const image = document.getElementById("adm_img");
+    const alt = document.getElementById("adm_alt");
+    if (!image || !alt) return false;
+    image.value = values.imageUrl;
+    alt.value = values.imageAlt;
+    changed = true;
+  } else if (sectionId === "extraPodcast") {
+    const image = document.getElementById("extra_img");
+    const alt = document.getElementById("extra_alt");
+    if (!image || !alt) return false;
+    image.value = values.imageUrl;
+    alt.value = values.imageAlt;
+    changed = true;
+  }
+
+  if (!changed) return false;
+  saveState();
+  renderSectionsUI();
+  generateHtml();
+  return true;
+}
+
+function insertElementLibraryItemAtIndex(elementType, targetEnabledIndex) {
+  if (elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
+    const values = promptForImageValuesForLabel("new markdown section", {
+      imageUrl: "",
+      imageAlt: "",
+      imageLinkUrl: "",
+      imageWidth: 520
+    });
+    if (!values) return "";
+    return createBlankMarkdownSectionAtIndex(targetEnabledIndex, {
+      imageUrl: values.imageUrl,
+      imageAlt: values.imageAlt,
+      imageLinkUrl: values.imageLinkUrl,
+      imageWidth: values.imageWidth
+    });
+  }
+
+  if (elementType === ELEMENT_LIBRARY_ITEM_CTA) {
+    const values = promptForCtaValuesForLabel("new markdown section");
+    if (!values) return "";
+    return createBlankMarkdownSectionAtIndex(targetEnabledIndex, {
+      ctaText: values.ctaText,
+      ctaUrl: values.ctaUrl
+    });
+  }
+
+  return "";
 }
 
 function addCtaLinkForSection(sectionId) {
@@ -1557,6 +2429,7 @@ function addCtaLinkForSection(sectionId) {
   }
 
   if (!changed) return false;
+  saveState();
   renderSectionsUI();
   generateHtml();
   return true;
@@ -1623,6 +2496,7 @@ function addHighlightAuthorMetaFromPreview() {
   }
   moodSelect.value = values.moodId;
 
+  saveState();
   renderSectionsUI();
   generateHtml();
   return true;
@@ -1649,7 +2523,6 @@ function addHighlightAuthorMetaFromPreview() {
 
     case "lsatPodcast":
       return allFilled([
-        lsat_header,
         lsat_quote,
         lsat_img,
         lsat_desc,
@@ -1659,7 +2532,6 @@ function addHighlightAuthorMetaFromPreview() {
 
     case "admissionsPodcast":
       return allFilled([
-        adm_header,
         adm_intro,
         adm_img,
         adm_desc,
@@ -1670,7 +2542,6 @@ function addHighlightAuthorMetaFromPreview() {
     case "extraPodcast":
       return (
         allFilled([
-          extra_header,
           extra_img,
           extra_desc
         ], ["extra_quote", "extra_alt", "extra_youtube_url", "extra_spotify_url"]) &&
@@ -1705,6 +2576,11 @@ function addHighlightAuthorMetaFromPreview() {
         const hasMarkdown = String(section.markdown || "").trim().length > 0;
         const hasImage = String(section.imageUrl || "").trim().length > 0;
         return (hasMarkdown || hasImage) ? "ready" : "needs";
+      }
+      if (isHtmlFragmentId(id)) {
+        const fragment = state.htmlFragments.find(s => s.id === id);
+        if (!fragment) return "needs";
+        return String(fragment.html || "").trim().length > 0 ? "ready" : "needs";
       }
       return "needs";
     }
@@ -1762,6 +2638,12 @@ function sectionDisplayLabel(section, sectionIndex) {
     const fallbackIndex = markdownIndex >= 0 ? markdownIndex : sectionIndex;
     const label = String(section.label || "").trim();
     return label || markdownSectionFallbackLabel(fallbackIndex);
+  }
+  if (isHtmlFragmentId(section.id)) {
+    const fragmentIndex = state.htmlFragments.findIndex(x => x.id === section.id);
+    const fallbackIndex = fragmentIndex >= 0 ? fragmentIndex : sectionIndex;
+    const label = String(section.label || "").trim();
+    return label || htmlFragmentFallbackLabel(fallbackIndex);
   }
   return String(section.label || section.id || "").trim();
 }
@@ -1880,6 +2762,7 @@ function renderSectionsUI(){
   });
 
   renderSectionManager();
+  applyPreviewSectionTrayUI();
 }
 
 const addSectionBtn = document.getElementById("addSectionBtn");
@@ -1893,6 +2776,9 @@ if (addSectionBtn) {
     if (!section) return;
 
     section.enabled = true;
+    if (ensurePreviewEditorState().enabled) {
+      setActivePreviewSection(sectionId, { save: false });
+    }
     saveState();
     renderSectionsUI();
     generateHtml();
@@ -2435,6 +3321,19 @@ function markdownSectionSummary(section, index){
   return label || markdownSectionFallbackLabel(index);
 }
 
+function blankHtmlFragment(){
+  return {
+    id: `htmlFragment_${Math.random().toString(36).slice(2, 10)}`,
+    label:"",
+    html:""
+  };
+}
+
+function htmlFragmentSummary(fragment, index){
+  const label = String(fragment?.label || "").trim();
+  return label || htmlFragmentFallbackLabel(index);
+}
+
 function ensureMarkdownSectionEntry(section, index){
   let entry = state.sections.find(s => s.id === section.id);
   if (!entry) {
@@ -2446,6 +3345,21 @@ function ensureMarkdownSectionEntry(section, index){
     state.sections.push(entry);
   } else {
     entry.label = markdownSectionSummary(section, index);
+    if (entry.enabled === undefined) entry.enabled = true;
+  }
+}
+
+function ensureHtmlFragmentEntry(fragment, index){
+  let entry = state.sections.find(s => s.id === fragment.id);
+  if (!entry) {
+    entry = {
+      id: fragment.id,
+      label: htmlFragmentSummary(fragment, index),
+      enabled: true
+    };
+    state.sections.push(entry);
+  } else {
+    entry.label = htmlFragmentSummary(fragment, index);
     if (entry.enabled === undefined) entry.enabled = true;
   }
 }
@@ -2634,6 +3548,108 @@ document.getElementById("clearAllMarkdownSectionsBtn").addEventListener("click",
   state.sections = state.sections.filter(s => !isMarkdownSectionId(s.id));
   saveState();
   renderMarkdownSectionsUI();
+  renderSectionsUI();
+  generateHtml();
+});
+
+function renderHtmlFragmentsUI(){
+  const panel = document.querySelector(".panel.sticky");
+  const insertBefore = document.getElementById("unsubscribe_url")?.closest(".row") || null;
+  if (!panel || !insertBefore) return;
+
+  const ids = new Set(state.htmlFragments.map(fragment => fragment.id));
+  panel.querySelectorAll("details[data-html-fragment-id]").forEach(block => {
+    if (!ids.has(block.dataset.htmlFragmentId)) block.remove();
+  });
+
+  state.htmlFragments.forEach((fragment, idx) => {
+    ensureHtmlFragmentEntry(fragment, idx);
+
+    let block = panel.querySelector(`details[data-html-fragment-id="${fragment.id}"]`);
+    if (!block) {
+      block = document.createElement("details");
+      block.className = "row";
+      block.open = true;
+      block.dataset.section = "html-fragments";
+      block.dataset.sectionId = fragment.id;
+      block.dataset.htmlFragmentId = fragment.id;
+      block.innerHTML = `
+        <summary></summary>
+        <div class="row" style="margin-top:10px;">
+          <label>Section label (optional)</label>
+          <input data-html-fragment-k="label" placeholder="e.g. Promo card">
+        </div>
+        <div class="row">
+          <label>HTML fragment</label>
+          <textarea data-html-fragment-k="html" placeholder="<div style=&quot;padding:16px; border:1px solid #e5e7eb;&quot;>Paste trusted HTML snippet</div>"></textarea>
+          <div class="small" style="margin-top:6px;">Injected as HTML. Script tags are removed automatically for safety.</div>
+        </div>
+        <div class="btns">
+          <button class="danger tiny" type="button" data-remove-html-fragment>Remove section</button>
+        </div>
+      `;
+    }
+
+    const summary = block.querySelector("summary");
+    const labelInput = block.querySelector("[data-html-fragment-k='label']");
+    const htmlInput = block.querySelector("[data-html-fragment-k='html']");
+    const removeBtn = block.querySelector("[data-remove-html-fragment]");
+
+    summary.textContent = htmlFragmentSummary(fragment, idx);
+    labelInput.value = fragment.label || "";
+    htmlInput.value = fragment.html || "";
+    bindAutoResizeTextarea(htmlInput);
+
+    labelInput.oninput = () => {
+      fragment.label = labelInput.value;
+      const sec = state.sections.find(s => s.id === fragment.id);
+      if (sec) sec.label = htmlFragmentSummary(fragment, idx);
+      saveState();
+      summary.textContent = htmlFragmentSummary(fragment, idx);
+      renderSectionManager();
+      autoGenerateHtml();
+    };
+
+    htmlInput.oninput = () => {
+      fragment.html = htmlInput.value;
+      saveState();
+      autoGenerateHtml();
+    };
+
+    removeBtn.onclick = () => {
+      state.htmlFragments = state.htmlFragments.filter(s => s.id !== fragment.id);
+      state.sections = state.sections.filter(s => s.id !== fragment.id);
+      saveState();
+      renderHtmlFragmentsUI();
+      renderSectionsUI();
+      generateHtml();
+    };
+
+    panel.insertBefore(block, insertBefore);
+  });
+
+  saveState();
+}
+
+document.getElementById("addHtmlFragmentBtn").addEventListener("click", () => {
+  const fragment = blankHtmlFragment();
+  state.htmlFragments.push(fragment);
+  state.sections.push({
+    id: fragment.id,
+    label: htmlFragmentSummary(fragment, state.htmlFragments.length - 1),
+    enabled: true
+  });
+  saveState();
+  renderHtmlFragmentsUI();
+  renderSectionsUI();
+  generateHtml();
+});
+
+document.getElementById("clearAllHtmlFragmentsBtn").addEventListener("click", () => {
+  state.htmlFragments = [];
+  state.sections = state.sections.filter(s => !isHtmlFragmentId(s.id));
+  saveState();
+  renderHtmlFragmentsUI();
   renderSectionsUI();
   generateHtml();
 });
@@ -2909,7 +3925,8 @@ function buildPreviewSectionLibraryHtml() {
     .filter(({ section }) => !section.enabled);
 
   const chips = [
-    `<span data-section-library-item="${escAttr(LIBRARY_ITEM_NEW_MARKDOWN)}" draggable="true">Blank Markdown Section</span>`
+    `<span data-section-library-item="${escAttr(LIBRARY_ITEM_NEW_MARKDOWN)}" draggable="true">Blank Markdown Section</span>`,
+    `<span data-section-library-item="${escAttr(LIBRARY_ITEM_NEW_HTML_FRAGMENT)}" draggable="true">HTML Fragment Section</span>`
   ];
 
   disabledSections.forEach(({ section, idx }) => {
@@ -2918,7 +3935,7 @@ function buildPreviewSectionLibraryHtml() {
   });
   const chipsHtml = chips.join("");
   const helperText = disabledSections.length === 0
-    ? `<div data-preview-library-empty style="margin-top:8px;">Drag “Blank Markdown Section” to add custom copy blocks.</div>`
+    ? `<div data-preview-library-empty style="margin-top:8px;">Drag “Blank Markdown Section” or “HTML Fragment Section” to add custom blocks.</div>`
     : "";
   const body = `<div data-preview-library-list>${chipsHtml}</div>${helperText}`;
 
@@ -2926,6 +3943,20 @@ function buildPreviewSectionLibraryHtml() {
 <div data-preview-library-box>
   <div data-preview-library-title>Section Blocks (Drag Into The Email)</div>
   ${body}
+</div>`;
+}
+
+function buildPreviewElementLibraryHtml() {
+  const chips = [
+    `<span data-element-library-item="${escAttr(ELEMENT_LIBRARY_ITEM_IMAGE)}" draggable="true">Image Block</span>`,
+    `<span data-element-library-item="${escAttr(ELEMENT_LIBRARY_ITEM_CTA)}" draggable="true">CTA Button</span>`
+  ];
+
+  return `
+<div data-preview-element-box>
+  <div data-preview-element-title>Element Blocks</div>
+  <div data-preview-element-list>${chips.join("")}</div>
+  <div data-preview-element-hint>Drag onto a compatible section to inject content, or drop between sections to create a new markdown block.</div>
 </div>`;
 }
 
@@ -2963,7 +3994,7 @@ function buildHighlightAuthorTrayHtml() {
 function buildDiscussionEditorTrayHtml() {
   const discussionSection = state.sections.find(section => section.id === "discussion");
   if (!discussionSection) return "";
-  const discussionHeader = escAttr(document.getElementById("discussion_label")?.value || "Discussion Forum Roundup");
+  const discussionHeader = escAttr(document.getElementById("discussion_label")?.value || "");
 
   if (!Array.isArray(state.discussion) || state.discussion.length === 0) {
     state.discussion = [blankDiscussionPost()];
@@ -3071,8 +4102,13 @@ function buildSectionDropzoneRow(index) {
 /** ------------------------ section builders ------------------------ **/
 function buildHighlight(bg, options = {}){
   const interactive = !!options.interactive;
-  const sectionLabelRaw = escHtml(document.getElementById("highlight_label").value || "Highlight").toUpperCase();
-  const sectionLabel = wrapEditablePlain(sectionLabelRaw, "highlight.label", interactive);
+  const sectionLabelInput = String(document.getElementById("highlight_label").value || "").trim();
+  const sectionLabel = sectionLabelInput
+    ? wrapEditablePlain(escHtml(sectionLabelInput).toUpperCase(), "highlight.label", interactive)
+    : "";
+  const sectionLabelRow = sectionLabel
+    ? `<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${sectionLabel}</td></tr>`
+    : "";
   const titleValue = document.getElementById("highlight_title").value;
   const title = wrapEditablePlain(
     inlineMarkdownToHtml(titleValue, { allowLinks: false }),
@@ -3128,7 +4164,7 @@ function buildHighlight(bg, options = {}){
         </table>` : "";
 
   const inner = `
-<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${sectionLabel}</td></tr>
+${sectionLabelRow}
 <tr><td align="center" class="pad" style="padding:0 20px 12px 20px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
     style="width:100%; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; border-collapse:separate; box-shadow:0 2px 8px rgba(16,24,40,0.08);">
@@ -3173,11 +4209,13 @@ function buildHighlight(bg, options = {}){
 
 function buildFeatureSlot(bg, options = {}){
   const interactive = !!options.interactive;
-  const header = wrapEditablePlain(
-    escHtml(document.getElementById("feature_header").value || "Feature Slot").toUpperCase(),
-    "feature.header",
-    interactive
-  );
+  const headerInput = String(document.getElementById("feature_header").value || "").trim();
+  const header = headerInput
+    ? wrapEditablePlain(escHtml(headerInput).toUpperCase(), "feature.header", interactive)
+    : "";
+  const headerRow = header
+    ? `<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${header}</td></tr>`
+    : "";
   const topText = getRichContentForRender(
     "feature.topText",
     markdownToEmailHtml(document.getElementById("feature_top_text").value)
@@ -3248,7 +4286,7 @@ function buildFeatureSlot(bg, options = {}){
         </table>` : "";
 
   const inner = `
-<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${header}</td></tr>
+${headerRow}
 <tr><td align="center" class="pad" style="padding:0 20px 12px 20px;">
   ${(topText || interactive) ? `<table role="presentation" width="100%">
     <tr>
@@ -3312,11 +4350,17 @@ function buildPodcastSection(bg, {
   editDescKey
 }, options = {}){
   const interactive = !!options.interactive;
-  const headerSafe = wrapEditablePlain(
-    escHtml(header).toUpperCase(),
-    editHeaderKey,
-    interactive
-  );
+  const headerInput = String(header || "").trim();
+  const headerSafe = headerInput
+    ? wrapEditablePlain(
+        escHtml(headerInput).toUpperCase(),
+        editHeaderKey,
+        interactive
+      )
+    : "";
+  const headerRow = headerSafe
+    ? `<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${headerSafe}</td></tr>`
+    : "";
   const quoteSafe = wrapEditablePlain(
     inlineMarkdownToHtml(quote),
     editQuoteKey,
@@ -3375,7 +4419,7 @@ function buildPodcastSection(bg, {
 </table>` : "";
 
   const inner = `
-<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${headerSafe}</td></tr>
+${headerRow}
 ${(quoteSafe || (interactive && editQuoteKey)) ? `<tr><td align="left" class="pad" style="padding:12px 20px 8px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:16px; line-height:1.6; color:#344054; font-weight:700;">${quoteSafe}</td></tr>` : ""}
 ${mediaHtml ? `<tr><td align="center" class="pad" style="padding:0 20px 10px 20px;">${mediaHtml}</td></tr>` : ""}
 ${buttonsHtml ? `<tr><td align="center" class="pad" style="padding:0 20px 12px 20px;">${buttonsHtml}</td></tr>` : ""}
@@ -3386,7 +4430,7 @@ ${(descHtml || (interactive && editDescKey)) ? `<tr><td align="left" class="pad"
 
 function buildAdmissionsPodcast(bg, options = {}){
   return buildPodcastSection(bg, {
-    header: document.getElementById("adm_header").value || "Admissions Podcast",
+    header: document.getElementById("adm_header").value,
     quote: "",
     yt: document.getElementById("adm_youtube_url").value,
     sp: document.getElementById("adm_spotify_url").value,
@@ -3404,7 +4448,7 @@ function buildAdmissionsPodcast(bg, options = {}){
 
 function buildAdditionalPodcast(bg, options = {}){
   return buildPodcastSection(bg, {
-    header: document.getElementById("extra_header").value || "Daily Shorts",
+    header: document.getElementById("extra_header").value,
     quote: document.getElementById("extra_quote").value,
     yt: document.getElementById("extra_youtube_url").value,
     sp: document.getElementById("extra_spotify_url").value,
@@ -3487,8 +4531,13 @@ function buildAdmissionsBlog(bg, options = {}){
 
 function buildDiscussion(bg, options = {}){
   const interactive = !!options.interactive;
-  const sectionLabelRaw = escHtml(document.getElementById("discussion_label")?.value || "Discussion Forum Roundup").toUpperCase();
-  const sectionLabel = wrapEditablePlain(sectionLabelRaw, "discussion.header", interactive);
+  const sectionLabelInput = String(document.getElementById("discussion_label")?.value || "").trim();
+  const sectionLabel = sectionLabelInput
+    ? wrapEditablePlain(escHtml(sectionLabelInput).toUpperCase(), "discussion.header", interactive)
+    : "";
+  const sectionLabelRow = sectionLabel
+    ? `<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${sectionLabel}</td></tr>`
+    : "";
   const divider = `<div style="height:1px; border-top:1px solid #e5e7eb; margin:16px 0;"></div>`;
   const postsHtml = state.discussion.map((p, i) => {
     const topic = byId(presets.topics, p.topicId);
@@ -3543,7 +4592,7 @@ function buildDiscussion(bg, options = {}){
   }).join("");
 
   const inner = `
-<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${sectionLabel}</td></tr>
+${sectionLabelRow}
 <tr><td align="center">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
          style="margin-top:4px; box-shadow:0 2px 8px rgba(16,24,40,0.08); border-radius:12px;">
@@ -3772,15 +4821,21 @@ function buildMarkdownSection(bg, section, options = {}){
   const imageAlt = escAttr(section?.imageAlt || "");
   const imageLinkUrl = escAttr(section?.imageLinkUrl || "");
   const imageWidth = clampNumber(section?.imageWidth, 220, 560, 520);
+  const hasCta = !!(String(section?.ctaText || "").trim() && String(section?.ctaUrl || "").trim());
   const ctaText = inlineMarkdownToHtml(section?.ctaText || "", { allowLinks: false });
   const ctaUrl = escAttr(section?.ctaUrl || "");
-  if (!contentHtml && !imageUrl && !interactive) return "";
+  if (!contentHtml && !imageUrl && !hasCta && !interactive) return "";
 
-  const sectionLabel = wrapEditablePlain(
-    escHtml(label || "Markdown Section").toUpperCase(),
-    previewMarkdownLabelKey(section?.id),
-    interactive
-  );
+  const sectionLabel = label
+    ? wrapEditablePlain(
+        escHtml(label).toUpperCase(),
+        previewMarkdownLabelKey(section?.id),
+        interactive
+      )
+    : "";
+  const sectionLabelRow = sectionLabel
+    ? `<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${sectionLabel}</td></tr>`
+    : "";
   const imageTag = imageUrl
     ? `<img src="${imageUrl}"
          alt="${imageAlt}"
@@ -3812,10 +4867,42 @@ function buildMarkdownSection(bg, section, options = {}){
   ${wrapEditableRich(contentHtml, richKey, interactive)}
 </td></tr>` : "";
   const inner = `
-<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${sectionLabel}</td></tr>
+${sectionLabelRow}
 ${contentRow}
 ${imageHtml}
 ${ctaHtml}`;
+
+  return sectionWrapper(bg, inner, options);
+}
+
+function sanitizeInjectedHtmlFragment(rawHtml) {
+  return String(rawHtml || "")
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .trim();
+}
+
+function buildHtmlFragmentSection(bg, fragment, options = {}){
+  const interactive = !!options.interactive;
+  const fragmentLabel = String(fragment?.label || "").trim();
+  const sectionLabel = fragmentLabel
+    ? wrapEditablePlain(
+        escHtml(fragmentLabel).toUpperCase(),
+        `htmlFragment.${fragment?.id}.label`,
+        interactive
+      )
+    : "";
+  const sectionLabelRow = sectionLabel
+    ? `<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${sectionLabel}</td></tr>`
+    : "";
+  const htmlFragment = sanitizeInjectedHtmlFragment(fragment?.html || "");
+  if (!htmlFragment && !interactive) return "";
+
+  const fallback = `<div style="font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:14px; color:#667085;">Paste an HTML fragment in the sidebar to render this section.</div>`;
+  const inner = `
+${sectionLabelRow}
+<tr><td align="left" class="pad" style="padding:0 20px 12px 20px;">
+  ${htmlFragment || fallback}
+</td></tr>`;
 
   return sectionWrapper(bg, inner, options);
 }
@@ -3827,7 +4914,7 @@ function buildSectionById(sectionId, bg, options = {}){
   if (sectionId === "featureSlot") return buildFeatureSlot(bg, options);
   if (sectionId === "lsatPodcast") {
     return buildPodcastSection(bg, {
-      header: document.getElementById("lsat_header").value || "LSAT Podcast",
+      header: document.getElementById("lsat_header").value,
       quote: document.getElementById("lsat_quote").value,
       yt: document.getElementById("lsat_youtube_url").value,
       sp: document.getElementById("lsat_spotify_url").value,
@@ -3848,6 +4935,10 @@ function buildSectionById(sectionId, bg, options = {}){
   if (isMarkdownSectionId(sectionId)) {
     const markdownSection = state.markdownSections.find(x => x.id === sectionId);
     return markdownSection ? buildMarkdownSection(bg, markdownSection, options) : "";
+  }
+  if (isHtmlFragmentId(sectionId)) {
+    const htmlFragment = state.htmlFragments.find(x => x.id === sectionId);
+    return htmlFragment ? buildHtmlFragmentSection(bg, htmlFragment, options) : "";
   }
 
   return "";
@@ -3927,16 +5018,137 @@ const featureImgWidthSlider = document.getElementById("feature_img_width");
 if (featureImgWidthSlider) {
   featureImgWidthSlider.addEventListener("input", syncFeatureImageWidthValue);
 }
+
+const projectSelect = document.getElementById("projectSelect");
+if (projectSelect) {
+  projectSelect.addEventListener("change", () => {
+    const nextId = String(projectSelect.value || "");
+    if (!nextId || nextId === activeProjectId) return;
+    switchToProject(nextId, { persistCurrent: true });
+  });
+}
+
+const saveProjectBtn = document.getElementById("saveProjectBtn");
+if (saveProjectBtn) {
+  saveProjectBtn.addEventListener("click", () => {
+    const nameInput = document.getElementById("projectNameInput");
+    const active = getActiveProjectEntry();
+    if (!active) return;
+    const requestedName = normalizeProjectName(nameInput?.value, active.name || PROJECT_DEFAULT_NAME);
+    active.name = makeUniqueProjectName(requestedName, active.id);
+    syncActiveProjectSnapshot();
+    alert(`Saved "${active.name}".`);
+  });
+}
+
+const saveAsProjectBtn = document.getElementById("saveAsProjectBtn");
+if (saveAsProjectBtn) {
+  saveAsProjectBtn.addEventListener("click", () => {
+    if (!projectFilesystem) return;
+    const nameInput = document.getElementById("projectNameInput");
+    syncActiveProjectSnapshot({ skipUi: true });
+    const created = createProjectFromCurrent(nameInput?.value);
+    saveProjectFilesystem();
+    switchToProject(created.id, { persistCurrent: false });
+    alert(`Created "${created.name}".`);
+  });
+}
+
+const newProjectBtn = document.getElementById("newProjectBtn");
+if (newProjectBtn) {
+  newProjectBtn.addEventListener("click", () => {
+    if (!projectFilesystem) return;
+    const nameInput = document.getElementById("projectNameInput");
+    syncActiveProjectSnapshot({ skipUi: true });
+    const created = createBlankProject(nameInput?.value || `Project ${projectFilesystem.projects.length + 1}`);
+    saveProjectFilesystem();
+    switchToProject(created.id, { persistCurrent: false });
+    alert(`Created blank project "${created.name}".`);
+  });
+}
+
+const deleteProjectBtn = document.getElementById("deleteProjectBtn");
+if (deleteProjectBtn) {
+  deleteProjectBtn.addEventListener("click", () => {
+    if (!projectFilesystem || projectFilesystem.projects.length <= 1) {
+      alert("At least one project must remain.");
+      return;
+    }
+    const active = getActiveProjectEntry();
+    if (!active) return;
+
+    const confirmed = window.confirm(`Delete project "${active.name}"? This cannot be undone.`);
+    if (!confirmed) return;
+
+    const index = projectFilesystem.projects.findIndex(project => project.id === active.id);
+    if (index < 0) return;
+    projectFilesystem.projects.splice(index, 1);
+    const next = projectFilesystem.projects[Math.max(0, index - 1)] || projectFilesystem.projects[0];
+    if (!next) return;
+    saveProjectFilesystem();
+    switchToProject(next.id, { persistCurrent: false });
+    alert(`Deleted "${active.name}".`);
+  });
+}
+
+const exportProjectBtn = document.getElementById("exportProjectBtn");
+if (exportProjectBtn) {
+  exportProjectBtn.addEventListener("click", () => {
+    const exported = exportActiveProjectAsJson();
+    if (!exported) {
+      alert("No active project to export.");
+      return;
+    }
+    const active = getActiveProjectEntry();
+    if (active) alert(`Exported "${active.name}" to JSON.`);
+  });
+}
+
+const importProjectBtn = document.getElementById("importProjectBtn");
+const importProjectFile = document.getElementById("importProjectFile");
+if (importProjectBtn && importProjectFile) {
+  importProjectBtn.addEventListener("click", () => {
+    importProjectFile.click();
+  });
+
+  importProjectFile.addEventListener("change", async () => {
+    const file = importProjectFile.files?.[0];
+    if (!file) return;
+
+    try {
+      const fileText = await file.text();
+      const parsed = JSON.parse(fileText);
+      syncActiveProjectSnapshot({ skipUi: true });
+      const importedProjectIds = importProjectsFromPayload(parsed);
+
+      if (!importedProjectIds.length) {
+        alert("Import failed: JSON does not contain a recognized project payload.");
+        return;
+      }
+
+      switchToProject(importedProjectIds[0], { persistCurrent: false });
+      const count = importedProjectIds.length;
+      alert(count === 1 ? "Imported 1 project from JSON." : `Imported ${count} projects from JSON.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      alert(`Import failed: ${message}`);
+    } finally {
+      importProjectFile.value = "";
+    }
+  });
+}
   
 document.addEventListener("input", (e) => {
   if (
     e.target.matches("input, textarea, select") &&
-    !e.target.closest('[data-section="admin"]')
+    !e.target.closest('[data-section="admin"]') &&
+    !e.target.closest("[data-storage-ui]")
   ) {
     clearLinkedRichOverridesForInput(e.target);
 
-    // Markdown section fields manage their own debounced generation.
+    // Markdown/HTML fragment fields manage their own debounced generation.
     if (e.target.closest("details[data-markdown-section-id]")) return;
+    if (e.target.closest("details[data-html-fragment-id]")) return;
 
     const block = e.target.closest("details[data-section-id]");
     if (block) {
@@ -3947,28 +5159,29 @@ document.addEventListener("input", (e) => {
         renderSectionsUI();
       }
     }
+    saveState();
     autoGenerateHtml();
   }
 });
 
 /** ------------------------ init ------------------------ **/
 function initApp() {
+  if (!projectFieldDefaults) projectFieldDefaults = captureProjectFieldValues();
   presets = loadPresets();
   state = loadState();
   ensurePreviewEditorState();
+  initProjectFilesystem();
 
-  renderAdminAll();
-  renderHighlightMoodOptions();
-  syncFeatureImageWidthValue();
-  bindAutoResizeTextareas(document);
-  renderMarkdownSectionsUI();
-  renderSectionsUI();
-  renderDiscussionUI();
-  renderClassesUI();
-  renderCustomLinksUI();
-  saveState();
-  applyPreviewEditModeUI();
-  generateHtml();
+  const active = getActiveProjectEntry();
+  if (active?.snapshot) {
+    presets = normalizePresets(active.snapshot.presets);
+    state = normalizeState(active.snapshot.state);
+  }
+  ensurePreviewEditorState();
+
+  hydrateUiFromCurrentModels(active?.snapshot?.fields || {});
+  renderProjectFilesystemUI();
+  syncActiveProjectSnapshot({ skipUi: true });
 }
 
 initApp();
