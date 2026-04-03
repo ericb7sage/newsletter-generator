@@ -143,6 +143,7 @@ const DEFAULT_STATE = {
   previewEditor: {
     enabled: false,
     activeSectionId: "",
+    pendingElementAction: null,
     richOverrides: {}
   }
 };
@@ -245,6 +246,69 @@ function normalizeHtmlFragments(rawFragments){
   });
 }
 
+function defaultPendingElementValues(elementType) {
+  if (elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
+    return {
+      imageUrl: "",
+      imageAlt: "",
+      imageLinkUrl: "",
+      imageWidth: 520
+    };
+  }
+  if (elementType === ELEMENT_LIBRARY_ITEM_CTA) {
+    return {
+      ctaText: "Learn more",
+      ctaUrl: ""
+    };
+  }
+  if (elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) {
+    return { markdown: "" };
+  }
+  if (elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) {
+    return { htmlFragment: "" };
+  }
+  return {};
+}
+
+function normalizePendingElementAction(rawAction) {
+  if (!rawAction || typeof rawAction !== "object") return null;
+  const elementType = String(rawAction.elementType || "");
+  if (![
+    ELEMENT_LIBRARY_ITEM_IMAGE,
+    ELEMENT_LIBRARY_ITEM_CTA,
+    ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT,
+    ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT
+  ].includes(elementType)) return null;
+
+  const values = { ...defaultPendingElementValues(elementType) };
+  const rawValues = (rawAction.values && typeof rawAction.values === "object") ? rawAction.values : {};
+
+  if (elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
+    values.imageUrl = String(rawValues.imageUrl || "");
+    values.imageAlt = String(rawValues.imageAlt || "");
+    values.imageLinkUrl = String(rawValues.imageLinkUrl || "");
+    values.imageWidth = clampNumber(rawValues.imageWidth, 220, 560, 520);
+  } else if (elementType === ELEMENT_LIBRARY_ITEM_CTA) {
+    values.ctaText = String(rawValues.ctaText || "");
+    values.ctaUrl = String(rawValues.ctaUrl || "");
+  } else if (elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) {
+    values.markdown = String(rawValues.markdown || "");
+  } else if (elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) {
+    values.htmlFragment = String(rawValues.htmlFragment || "");
+  }
+
+  const targetSectionId = String(rawAction.targetSectionId || "");
+  const rawTargetIndex = Number(rawAction.targetEnabledIndex);
+  const targetEnabledIndex = Number.isFinite(rawTargetIndex) ? Math.max(0, Math.round(rawTargetIndex)) : null;
+
+  return {
+    elementType,
+    targetSectionId,
+    targetEnabledIndex,
+    values
+  };
+}
+
 function syncMarkdownSections(sectionState, markdownSections){
   const sections = Array.isArray(sectionState) ? sectionState : [];
   const markdownById = new Map(markdownSections.map((m, idx) => [m.id, { ...m, _idx: idx }]));
@@ -343,6 +407,8 @@ function normalizeState(raw){
       richOverrides[String(key)] = String(value || "");
     });
   }
+  const rawPendingElementAction = rawPreviewEditor?.pendingElementAction;
+  const pendingElementAction = normalizePendingElementAction(rawPendingElementAction);
 
   return {
     ...fallback,
@@ -358,6 +424,7 @@ function normalizeState(raw){
         ? rawPreviewEditor.enabled
         : !!fallback.previewEditor.enabled,
       activeSectionId: String(rawPreviewEditor.activeSectionId || ""),
+      pendingElementAction,
       richOverrides
     }
   };
@@ -923,11 +990,12 @@ const ALLOWED_RICH_TAGS = new Set(["p", "br", "strong", "em", "ul", "ol", "li", 
 
 function ensurePreviewEditorState() {
   if (!state.previewEditor || typeof state.previewEditor !== "object") {
-    state.previewEditor = { enabled: false, activeSectionId: "", richOverrides: {} };
+    state.previewEditor = { enabled: false, activeSectionId: "", pendingElementAction: null, richOverrides: {} };
   }
   if (typeof state.previewEditor.activeSectionId !== "string") {
     state.previewEditor.activeSectionId = "";
   }
+  state.previewEditor.pendingElementAction = normalizePendingElementAction(state.previewEditor.pendingElementAction);
   if (!state.previewEditor.richOverrides || typeof state.previewEditor.richOverrides !== "object") {
     state.previewEditor.richOverrides = {};
   }
@@ -1714,12 +1782,13 @@ function bindPreviewEditorInteractions() {
         changed = !!insertedSectionId;
         activeSectionId = insertedSectionId;
       } else if (payload.kind === "element") {
-        const insertedSectionId = insertElementLibraryItemAtIndex(payload.elementType, targetIndex);
-        changed = !!insertedSectionId;
-        activeSectionId = insertedSectionId;
+        changed = openPendingElementAction(payload.elementType, {
+          targetEnabledIndex: targetIndex
+        });
       }
 
       if (!changed) return;
+      if (payload.kind === "element") return;
       saveState();
       renderMarkdownSectionsUI();
       renderHtmlFragmentsUI();
@@ -1766,18 +1835,24 @@ function bindPreviewEditorInteractions() {
 
       let changed = false;
       if (payload.elementType === ELEMENT_LIBRARY_ITEM_CTA) {
-        changed = addCtaLinkForSection(sectionId);
+        changed = openPendingElementAction(ELEMENT_LIBRARY_ITEM_CTA, {
+          targetSectionId: sectionId
+        });
       } else if (payload.elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
-        changed = addImageForSection(sectionId);
+        changed = openPendingElementAction(ELEMENT_LIBRARY_ITEM_IMAGE, {
+          targetSectionId: sectionId
+        });
       } else if (payload.elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) {
-        changed = addMarkdownFragmentForSection(sectionId);
+        changed = openPendingElementAction(ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT, {
+          targetSectionId: sectionId
+        });
       } else if (payload.elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) {
-        changed = addHtmlFragmentForSection(sectionId);
+        changed = openPendingElementAction(ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT, {
+          targetSectionId: sectionId
+        });
       }
 
       if (!changed) return;
-      setActivePreviewSection(sectionId, { save: false });
-      saveState();
     });
   });
 
@@ -1828,7 +1903,9 @@ function bindPreviewEditorInteractions() {
     const sectionId = contextSectionId;
     hideContextMenu();
     if (action === "addCta" && sectionId) {
-      addCtaLinkForSection(sectionId);
+      openPendingElementAction(ELEMENT_LIBRARY_ITEM_CTA, {
+        targetSectionId: sectionId
+      });
     } else if (action === "addHighlightAuthorMeta" && sectionId === "highlight") {
       addHighlightAuthorMetaFromPreview();
     }
@@ -1901,6 +1978,329 @@ function ensurePreviewSectionTrayEmptyState(panel) {
   return emptyState;
 }
 
+function ensurePreviewElementActionTray(panel) {
+  if (!panel) return null;
+  let tray = panel.querySelector("[data-preview-element-action-tray]");
+  if (!tray) {
+    tray = document.createElement("div");
+    tray.dataset.previewElementActionTray = "true";
+    tray.className = "row section-manager";
+    const firstSectionBlock = panel.querySelector("details[data-section-id]");
+    if (firstSectionBlock) panel.insertBefore(tray, firstSectionBlock);
+    else panel.appendChild(tray);
+  }
+  return tray;
+}
+
+function getSectionCtaDefaults(sectionId) {
+  if (isMarkdownSectionId(sectionId)) {
+    const section = state.markdownSections.find(item => item.id === sectionId);
+    return {
+      ctaText: String(section?.ctaText || "Learn more"),
+      ctaUrl: String(section?.ctaUrl || "")
+    };
+  }
+  if (sectionId === "featureSlot") {
+    const cta1Text = String(document.getElementById("feature_cta_text_1")?.value || "");
+    const cta1Url = String(document.getElementById("feature_cta_url_1")?.value || "");
+    const cta2Text = String(document.getElementById("feature_cta_text_2")?.value || "");
+    const cta2Url = String(document.getElementById("feature_cta_url_2")?.value || "");
+    if (cta1Url) return { ctaText: cta1Text || "Learn more", ctaUrl: cta1Url };
+    if (cta2Url) return { ctaText: cta2Text || "Learn more", ctaUrl: cta2Url };
+    return { ctaText: cta1Text || "Learn more", ctaUrl: "" };
+  }
+  if (sectionId === "highlight") {
+    return {
+      ctaText: String(document.getElementById("highlight_button")?.value || "View post"),
+      ctaUrl: String(document.getElementById("highlight_url")?.value || "")
+    };
+  }
+  if (sectionId === "customLinks") {
+    const last = Array.isArray(state.customLinks) && state.customLinks.length
+      ? state.customLinks[state.customLinks.length - 1]
+      : null;
+    return {
+      ctaText: String(last?.linkText || "Learn more"),
+      ctaUrl: String(last?.url || "")
+    };
+  }
+  return {
+    ctaText: "Learn more",
+    ctaUrl: ""
+  };
+}
+
+function buildPendingElementAction(elementType, options = {}) {
+  const next = {
+    elementType: String(elementType || ""),
+    targetSectionId: String(options.targetSectionId || ""),
+    targetEnabledIndex: Number.isFinite(Number(options.targetEnabledIndex))
+      ? Math.max(0, Math.round(Number(options.targetEnabledIndex)))
+      : null,
+    values: {
+      ...defaultPendingElementValues(elementType),
+      ...(options.values && typeof options.values === "object" ? options.values : {})
+    }
+  };
+
+  if (next.targetSectionId) {
+    if (elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
+      next.values = {
+        ...defaultPendingElementValues(elementType),
+        ...(getSectionImageDefaults(next.targetSectionId) || {})
+      };
+    } else if (elementType === ELEMENT_LIBRARY_ITEM_CTA) {
+      next.values = {
+        ...defaultPendingElementValues(elementType),
+        ...getSectionCtaDefaults(next.targetSectionId)
+      };
+    } else if (elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) {
+      const section = state.markdownSections.find(item => item.id === next.targetSectionId);
+      next.values = { markdown: String(section?.markdown || "") };
+    } else if (elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) {
+      const section = state.markdownSections.find(item => item.id === next.targetSectionId);
+      next.values = { htmlFragment: String(section?.htmlFragment || "") };
+    }
+  }
+
+  if (options.values && typeof options.values === "object") {
+    next.values = { ...next.values, ...options.values };
+  }
+
+  return normalizePendingElementAction(next);
+}
+
+function setPendingElementAction(action, options = {}) {
+  const opts = {
+    save: true,
+    ...options
+  };
+  const editor = ensurePreviewEditorState();
+  editor.pendingElementAction = normalizePendingElementAction(action);
+  if (opts.save) saveState();
+  applyPreviewSectionTrayUI();
+}
+
+function clearPendingElementAction(options = {}) {
+  const opts = {
+    save: true,
+    ...options
+  };
+  setPendingElementAction(null, { save: opts.save });
+}
+
+function openPendingElementAction(elementType, options = {}) {
+  const action = buildPendingElementAction(elementType, options);
+  if (!action) return false;
+  const targetSectionId = String(action.targetSectionId || "");
+  if (targetSectionId) setActivePreviewSection(targetSectionId, { save: false });
+  setPendingElementAction(action, { save: false });
+  saveState();
+  return true;
+}
+
+function pendingElementActionTargetLabel(action) {
+  if (!action) return "";
+  if (action.targetSectionId) {
+    const sectionIdx = state.sections.findIndex(section => section.id === action.targetSectionId);
+    const sectionEntry = sectionIdx >= 0 ? state.sections[sectionIdx] : null;
+    return sectionDisplayLabel(sectionEntry, sectionIdx >= 0 ? sectionIdx : 0) || action.targetSectionId;
+  }
+  return "New Blank Section";
+}
+
+function buildPendingElementActionTrayHtml(action) {
+  const targetLabel = escHtml(pendingElementActionTargetLabel(action));
+  const values = (action?.values && typeof action.values === "object") ? action.values : {};
+  const elementType = String(action?.elementType || "");
+
+  let fieldsHtml = "";
+  let title = "Add Element";
+  if (elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
+    title = "Image Block";
+    const width = clampNumber(values.imageWidth, 220, 560, 520);
+    fieldsHtml = `
+      <div class="grid">
+        <div class="row">
+          <label>Image URL</label>
+          <input type="url" data-element-action-k="imageUrl" value="${escAttr(values.imageUrl || "")}" placeholder="https://example.com/image.jpg">
+        </div>
+        <div class="row">
+          <label>Image alt (optional)</label>
+          <input type="text" data-element-action-k="imageAlt" value="${escAttr(values.imageAlt || "")}" placeholder="Describe the image">
+        </div>
+      </div>
+      <div class="row">
+        <label>Image link URL (optional)</label>
+        <input type="url" data-element-action-k="imageLinkUrl" value="${escAttr(values.imageLinkUrl || "")}" placeholder="https://example.com">
+      </div>
+      <div class="row">
+        <label>Image width: <span data-element-action-image-width-value>${width}px</span></label>
+        <input type="range" min="220" max="560" step="10" data-element-action-k="imageWidth" value="${width}">
+      </div>
+    `;
+  } else if (elementType === ELEMENT_LIBRARY_ITEM_CTA) {
+    title = "CTA Button";
+    fieldsHtml = `
+      <div class="grid">
+        <div class="row">
+          <label>Button text</label>
+          <input type="text" data-element-action-k="ctaText" value="${escAttr(values.ctaText || "")}" placeholder="e.g. Learn more">
+        </div>
+        <div class="row">
+          <label>Button URL</label>
+          <input type="url" data-element-action-k="ctaUrl" value="${escAttr(values.ctaUrl || "")}" placeholder="https://example.com">
+        </div>
+      </div>
+    `;
+  } else if (elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) {
+    title = "Markdown Fragment";
+    fieldsHtml = `
+      <div class="row">
+        <label>Markdown</label>
+        <textarea data-element-action-k="markdown" placeholder="# Heading&#10;Body copy with **bold**, lists, and [links](https://example.com).">${escHtml(values.markdown || "")}</textarea>
+      </div>
+    `;
+  } else if (elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) {
+    title = "HTML Fragment";
+    fieldsHtml = `
+      <div class="row">
+        <label>HTML fragment</label>
+        <textarea data-element-action-k="htmlFragment" placeholder="<div style=&quot;padding:16px; border:1px solid #e5e7eb;&quot;>Snippet</div>">${escHtml(values.htmlFragment || "")}</textarea>
+        <div class="small" style="margin-top:6px;">Script tags are removed automatically for safety.</div>
+      </div>
+    `;
+  }
+
+  return `
+    <label style="margin-bottom:6px;">${title} Tray</label>
+    <div class="small" style="margin-bottom:10px;">Target: ${targetLabel}</div>
+    ${fieldsHtml}
+    <div class="btns">
+      <button class="secondary" type="button" data-element-action-cancel>Cancel</button>
+      <button type="button" data-element-action-apply>Apply</button>
+    </div>
+  `;
+}
+
+function applyPendingElementAction() {
+  const editor = ensurePreviewEditorState();
+  const action = normalizePendingElementAction(editor.pendingElementAction);
+  if (!action) return false;
+
+  const values = action.values || {};
+  if (action.elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
+    const imageUrl = normalizeImageUrl(values.imageUrl);
+    if (!imageUrl) {
+      window.alert("Image URL is required.");
+      return false;
+    }
+  } else if (action.elementType === ELEMENT_LIBRARY_ITEM_CTA) {
+    const ctaText = String(values.ctaText || "").trim();
+    const ctaUrl = normalizeCtaUrl(values.ctaUrl);
+    if (!ctaText || !ctaUrl) {
+      window.alert("CTA text and URL are required.");
+      return false;
+    }
+  }
+
+  let changed = false;
+  let nextActiveSectionId = String(action.targetSectionId || "");
+
+  if (action.targetSectionId) {
+    if (action.elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
+      changed = addImageForSection(action.targetSectionId, values);
+    } else if (action.elementType === ELEMENT_LIBRARY_ITEM_CTA) {
+      changed = addCtaLinkForSection(action.targetSectionId, values);
+    } else if (action.elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) {
+      changed = addMarkdownFragmentForSection(action.targetSectionId, values.markdown);
+    } else if (action.elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) {
+      changed = addHtmlFragmentForSection(action.targetSectionId, values.htmlFragment);
+    }
+  } else {
+    const targetEnabledIndex = Number.isFinite(action.targetEnabledIndex)
+      ? action.targetEnabledIndex
+      : state.sections.filter(section => section.enabled).length;
+    let initialValues = {};
+    if (action.elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
+      initialValues = {
+        imageUrl: normalizeImageUrl(values.imageUrl),
+        imageAlt: String(values.imageAlt || ""),
+        imageLinkUrl: normalizeImageUrl(values.imageLinkUrl),
+        imageWidth: clampNumber(values.imageWidth, 220, 560, 520)
+      };
+    } else if (action.elementType === ELEMENT_LIBRARY_ITEM_CTA) {
+      initialValues = {
+        ctaText: String(values.ctaText || "").trim(),
+        ctaUrl: normalizeCtaUrl(values.ctaUrl)
+      };
+    } else if (action.elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) {
+      initialValues = { markdown: String(values.markdown || "") };
+    } else if (action.elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) {
+      initialValues = { htmlFragment: String(values.htmlFragment || "") };
+    }
+
+    const insertedSectionId = createBlankMarkdownSectionAtIndex(targetEnabledIndex, initialValues);
+    changed = !!insertedSectionId;
+    nextActiveSectionId = insertedSectionId;
+    if (changed) {
+      renderMarkdownSectionsUI();
+      renderHtmlFragmentsUI();
+      renderSectionsUI();
+      generateHtml();
+    }
+  }
+
+  if (!changed) return false;
+  clearPendingElementAction({ save: false });
+  if (nextActiveSectionId) setActivePreviewSection(nextActiveSectionId, { save: false });
+  saveState();
+  applyPreviewSectionTrayUI();
+  return true;
+}
+
+function bindPendingElementActionTray(tray, action) {
+  if (!tray || !action) return;
+
+  const syncImageWidthLabel = () => {
+    const range = tray.querySelector('[data-element-action-k="imageWidth"]');
+    const output = tray.querySelector("[data-element-action-image-width-value]");
+    if (!range || !output) return;
+    output.textContent = `${range.value}px`;
+  };
+
+  tray.querySelectorAll("input[data-element-action-k], textarea[data-element-action-k], select[data-element-action-k]").forEach(field => {
+    field.addEventListener("input", () => {
+      const key = String(field.dataset.elementActionK || "");
+      if (!key) return;
+      if (!action.values || typeof action.values !== "object") action.values = {};
+      if (key === "imageWidth") {
+        action.values[key] = clampNumber(field.value, 220, 560, 520);
+        field.value = String(action.values[key]);
+        syncImageWidthLabel();
+      } else {
+        action.values[key] = field.value;
+      }
+    });
+  });
+
+  const applyBtn = tray.querySelector("[data-element-action-apply]");
+  if (applyBtn) {
+    applyBtn.addEventListener("click", () => {
+      applyPendingElementAction();
+    });
+  }
+
+  const cancelBtn = tray.querySelector("[data-element-action-cancel]");
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", () => {
+      clearPendingElementAction();
+    });
+  }
+
+  syncImageWidthLabel();
+}
+
 function applyPreviewSectionTrayUI() {
   const panel = document.getElementById("editorPanel");
   if (!panel) return;
@@ -1924,6 +2324,8 @@ function applyPreviewSectionTrayUI() {
   }
 
   const emptyState = ensurePreviewSectionTrayEmptyState(panel);
+  const actionTray = ensurePreviewElementActionTray(panel);
+  const pendingAction = editor.pendingElementAction;
   panel.classList.toggle("preview-section-tray-mode", editMode);
 
   Array.from(panel.children).forEach(child => {
@@ -1933,8 +2335,19 @@ function applyPreviewSectionTrayUI() {
     }
     if (child.matches("details[data-section-id]")) return;
     if (child === emptyState) return;
+    if (child === actionTray) return;
     child.hidden = editMode;
   });
+
+  if (actionTray) {
+    const showActionTray = !!(editMode && pendingAction);
+    actionTray.hidden = !showActionTray;
+    if (showActionTray) {
+      actionTray.innerHTML = buildPendingElementActionTrayHtml(pendingAction);
+      bindPendingElementActionTray(actionTray, pendingAction);
+      actionTray.querySelectorAll("textarea").forEach(bindAutoResizeTextarea);
+    }
+  }
 
   blockById.forEach((block, sectionId) => {
     if (!editMode) {
@@ -1947,7 +2360,7 @@ function applyPreviewSectionTrayUI() {
   });
 
   if (emptyState) {
-    emptyState.hidden = !(editMode && !activeSectionId);
+    emptyState.hidden = !(editMode && !activeSectionId && !pendingAction);
   }
 }
 
@@ -1995,6 +2408,8 @@ function setPreviewEditMode(enabled) {
   editor.enabled = next;
   if (next) {
     editor.activeSectionId = "";
+  } else {
+    editor.pendingElementAction = null;
   }
   saveState();
   applyPreviewEditModeUI();
@@ -2144,31 +2559,6 @@ function normalizeCtaUrl(rawUrl) {
   return `https://${trimmed}`;
 }
 
-function promptForCtaValuesForLabel(sectionLabel) {
-  const displayLabel = String(sectionLabel || "").trim() || "section";
-  const text = window.prompt(`CTA text for "${displayLabel}"`, "Learn more");
-  if (text === null) return null;
-
-  const urlInput = window.prompt("CTA URL", "https://");
-  if (urlInput === null) return null;
-
-  const ctaText = String(text || "").trim();
-  const ctaUrl = normalizeCtaUrl(urlInput);
-  if (!ctaText || !ctaUrl) {
-    window.alert("CTA text and URL are both required.");
-    return null;
-  }
-
-  return { ctaText, ctaUrl };
-}
-
-function promptForCtaValues(sectionId) {
-  const sectionIdx = state.sections.findIndex(section => section.id === sectionId);
-  const sectionEntry = sectionIdx >= 0 ? state.sections[sectionIdx] : null;
-  const sectionLabel = sectionDisplayLabel(sectionEntry, sectionIdx >= 0 ? sectionIdx : 0) || sectionId;
-  return promptForCtaValuesForLabel(sectionLabel);
-}
-
 function normalizeImageUrl(rawUrl) {
   return normalizeOptionalHttpUrl(rawUrl);
 }
@@ -2239,96 +2629,12 @@ function getSectionImageDefaults(sectionId) {
   return null;
 }
 
-function promptForImageValuesForLabel(sectionLabel, defaults = {}) {
-  const displayLabel = String(sectionLabel || "").trim() || "section";
-  const current = (defaults && typeof defaults === "object") ? defaults : {};
-
-  const imageUrlInput = window.prompt(
-    `Image URL for "${displayLabel}"`,
-    String(current.imageUrl || "https://")
-  );
-  if (imageUrlInput === null) return null;
-  const imageUrl = normalizeImageUrl(imageUrlInput);
-  if (!imageUrl) {
-    window.alert("Image URL is required.");
-    return null;
-  }
-
-  const imageAltInput = window.prompt(
-    "Image alt text (optional)",
-    String(current.imageAlt || "")
-  );
-  if (imageAltInput === null) return null;
-
-  const imageLinkInput = window.prompt(
-    "Image link URL (optional)",
-    String(current.imageLinkUrl || "")
-  );
-  if (imageLinkInput === null) return null;
-
-  const widthInput = window.prompt(
-    "Image width in px (220-560, optional)",
-    String(current.imageWidth || 520)
-  );
-  if (widthInput === null) return null;
-
-  const widthRaw = String(widthInput || "").trim();
-  const imageWidth = widthRaw
-    ? clampNumber(widthRaw, 220, 560, 520)
-    : clampNumber(current.imageWidth, 220, 560, 520);
-
-  return {
-    imageUrl,
-    imageAlt: String(imageAltInput || "").trim(),
-    imageLinkUrl: normalizeImageUrl(imageLinkInput),
-    imageWidth
-  };
-}
-
-function promptForImageValues(sectionId) {
-  const sectionIdx = state.sections.findIndex(section => section.id === sectionId);
-  const sectionEntry = sectionIdx >= 0 ? state.sections[sectionIdx] : null;
-  const sectionLabel = sectionDisplayLabel(sectionEntry, sectionIdx >= 0 ? sectionIdx : 0) || sectionId;
-  const defaults = getSectionImageDefaults(sectionId) || {};
-  return promptForImageValuesForLabel(sectionLabel, defaults);
-}
-
-function promptForMarkdownFragmentForLabel(sectionLabel, currentMarkdown = "") {
-  const displayLabel = String(sectionLabel || "").trim() || "section";
-  const markdown = window.prompt(
-    `Markdown fragment for "${displayLabel}"`,
-    String(currentMarkdown || "")
-  );
-  if (markdown === null) return null;
-  return String(markdown || "").trim();
-}
-
-function promptForHtmlFragmentForLabel(sectionLabel, currentHtml = "") {
-  const displayLabel = String(sectionLabel || "").trim() || "section";
-  const html = window.prompt(
-    `HTML fragment for "${displayLabel}"`,
-    String(currentHtml || "")
-  );
-  if (html === null) return null;
-  return String(html || "").trim();
-}
-
-function addMarkdownFragmentForSection(sectionId) {
+function addMarkdownFragmentForSection(sectionId, nextMarkdownInput = "") {
   if (!isMarkdownSectionId(sectionId)) return false;
   const section = state.markdownSections.find(item => item.id === sectionId);
   if (!section) return false;
 
-  const sectionIdx = state.sections.findIndex(item => item.id === sectionId);
-  const sectionLabel = sectionDisplayLabel(
-    sectionIdx >= 0 ? state.sections[sectionIdx] : null,
-    sectionIdx >= 0 ? sectionIdx : 0
-  ) || sectionId;
-  const nextMarkdown = promptForMarkdownFragmentForLabel(sectionLabel, section.markdown);
-  if (nextMarkdown === null) return false;
-
-  if (section.markdown && nextMarkdown && section.markdown !== nextMarkdown) {
-    if (!window.confirm("This section already has markdown content. Replace it?")) return false;
-  }
+  const nextMarkdown = String(nextMarkdownInput || "").trim();
 
   section.markdown = nextMarkdown;
   renderMarkdownSectionsUI();
@@ -2338,22 +2644,12 @@ function addMarkdownFragmentForSection(sectionId) {
   return true;
 }
 
-function addHtmlFragmentForSection(sectionId) {
+function addHtmlFragmentForSection(sectionId, nextHtmlInput = "") {
   if (!isMarkdownSectionId(sectionId)) return false;
   const section = state.markdownSections.find(item => item.id === sectionId);
   if (!section) return false;
 
-  const sectionIdx = state.sections.findIndex(item => item.id === sectionId);
-  const sectionLabel = sectionDisplayLabel(
-    sectionIdx >= 0 ? state.sections[sectionIdx] : null,
-    sectionIdx >= 0 ? sectionIdx : 0
-  ) || sectionId;
-  const nextHtml = promptForHtmlFragmentForLabel(sectionLabel, section.htmlFragment);
-  if (nextHtml === null) return false;
-
-  if (section.htmlFragment && nextHtml && section.htmlFragment !== nextHtml) {
-    if (!window.confirm("This section already has an HTML fragment. Replace it?")) return false;
-  }
+  const nextHtml = String(nextHtmlInput || "").trim();
 
   section.htmlFragment = nextHtml;
   renderMarkdownSectionsUI();
@@ -2363,10 +2659,15 @@ function addHtmlFragmentForSection(sectionId) {
   return true;
 }
 
-function addImageForSection(sectionId) {
+function addImageForSection(sectionId, providedValues = null) {
   if (!sectionSupportsInlineImage(sectionId)) return false;
-  const values = promptForImageValues(sectionId);
-  if (!values) return false;
+  if (!providedValues || typeof providedValues !== "object") return false;
+  const values = {
+    imageUrl: normalizeImageUrl(providedValues.imageUrl),
+    imageAlt: String(providedValues.imageAlt || "").trim(),
+    imageLinkUrl: normalizeImageUrl(providedValues.imageLinkUrl),
+    imageWidth: clampNumber(providedValues.imageWidth, 220, 560, 520)
+  };
 
   let changed = false;
   if (isMarkdownSectionId(sectionId)) {
@@ -2420,55 +2721,13 @@ function addImageForSection(sectionId) {
   return true;
 }
 
-function insertElementLibraryItemAtIndex(elementType, targetEnabledIndex) {
-  if (elementType === ELEMENT_LIBRARY_ITEM_IMAGE) {
-    const values = promptForImageValuesForLabel("new blank section", {
-      imageUrl: "",
-      imageAlt: "",
-      imageLinkUrl: "",
-      imageWidth: 520
-    });
-    if (!values) return "";
-    return createBlankMarkdownSectionAtIndex(targetEnabledIndex, {
-      imageUrl: values.imageUrl,
-      imageAlt: values.imageAlt,
-      imageLinkUrl: values.imageLinkUrl,
-      imageWidth: values.imageWidth
-    });
-  }
-
-  if (elementType === ELEMENT_LIBRARY_ITEM_CTA) {
-    const values = promptForCtaValuesForLabel("new blank section");
-    if (!values) return "";
-    return createBlankMarkdownSectionAtIndex(targetEnabledIndex, {
-      ctaText: values.ctaText,
-      ctaUrl: values.ctaUrl
-    });
-  }
-
-  if (elementType === ELEMENT_LIBRARY_ITEM_MARKDOWN_FRAGMENT) {
-    const markdown = promptForMarkdownFragmentForLabel("new blank section");
-    if (markdown === null) return "";
-    return createBlankMarkdownSectionAtIndex(targetEnabledIndex, {
-      markdown
-    });
-  }
-
-  if (elementType === ELEMENT_LIBRARY_ITEM_HTML_FRAGMENT) {
-    const htmlFragment = promptForHtmlFragmentForLabel("new blank section");
-    if (htmlFragment === null) return "";
-    return createBlankMarkdownSectionAtIndex(targetEnabledIndex, {
-      htmlFragment
-    });
-  }
-
-  return "";
-}
-
-function addCtaLinkForSection(sectionId) {
+function addCtaLinkForSection(sectionId, providedValues = null) {
   if (!sectionSupportsInlineCta(sectionId)) return false;
-  const values = promptForCtaValues(sectionId);
-  if (!values) return false;
+  if (!providedValues || typeof providedValues !== "object") return false;
+  const values = {
+    ctaText: String(providedValues.ctaText || "").trim(),
+    ctaUrl: normalizeCtaUrl(providedValues.ctaUrl)
+  };
 
   const { ctaText, ctaUrl } = values;
   let changed = false;
@@ -2488,7 +2747,7 @@ function addCtaLinkForSection(sectionId) {
       cta2Text.value = ctaText;
       cta2Url.value = ctaUrl;
       changed = true;
-    } else if (window.confirm("Feature section already has two CTA links. Replace CTA 2?")) {
+    } else {
       cta2Text.value = ctaText;
       cta2Url.value = ctaUrl;
       changed = true;
@@ -2498,9 +2757,6 @@ function addCtaLinkForSection(sectionId) {
     const urlInput = document.getElementById("highlight_url");
     if (!buttonInput || !urlInput) return false;
 
-    if (String(urlInput.value || "").trim() && !window.confirm("Highlight already has a link. Replace it?")) {
-      return false;
-    }
     buttonInput.value = ctaText;
     urlInput.value = ctaUrl;
     changed = true;
@@ -2513,9 +2769,6 @@ function addCtaLinkForSection(sectionId) {
     const section = state.markdownSections.find(item => item.id === sectionId);
     if (!section) return false;
 
-    if (String(section.ctaUrl || "").trim() && !window.confirm("This markdown section already has a CTA. Replace it?")) {
-      return false;
-    }
     section.ctaText = ctaText;
     section.ctaUrl = ctaUrl;
     saveState();
