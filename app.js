@@ -136,6 +136,9 @@ let state = loadState();
 /** ------------------------ utils ------------------------ **/
 function deepClone(x){ return JSON.parse(JSON.stringify(x)); }
 
+// Section IDs that have been removed/replaced and should be silently dropped during migration.
+const RETIRED_SECTION_IDS = new Set(["lsatPodcast", "admissionsPodcast", "extraPodcast"]);
+
 function mergeSectionState(savedSections){
   const defaults = deepClone(DEFAULT_STATE.sections);
   const current = Array.isArray(savedSections) ? savedSections : [];
@@ -146,6 +149,7 @@ function mergeSectionState(savedSections){
   const merged = [];
   current.forEach(s => {
     if (!s?.id) return;
+    if (RETIRED_SECTION_IDS.has(s.id)) return; // drop legacy sections
     const def = defaultsById.get(s.id);
     if (!def) {
       merged.push(s); // keep unknown/local sections
