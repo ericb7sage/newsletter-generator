@@ -4469,7 +4469,7 @@ function buildHighlight(bg, options = {}){
 
   const titleHtml = title
     ? (url
-      ? `<a href="${url}" target="_blank" style="color:#344054; text-decoration:none; font-family:'Fraunces', Georgia, 'Times New Roman', serif;">${title}</a>`
+      ? `<a href="${url}" target="_blank" style="color:#227f9c; text-decoration:none; font-family:'Fraunces', Georgia, 'Times New Roman', serif;">${title}</a>`
       : title)
     : "";
 
@@ -4500,7 +4500,7 @@ ${sectionLabelRow}
       <td style="padding:20px;">
         ${titleHtml ? `<table role="presentation" width="100%">
           <tr>
-            <td style="font-family:'Fraunces', Georgia, 'Times New Roman', serif; font-size:20px; font-weight:600; color:#344054; line-height:1.3;">
+            <td style="font-family:'Fraunces', Georgia, 'Times New Roman', serif; font-size:20px; font-weight:600; color:#227f9c; line-height:1.3;">
               ${titleHtml}
             </td>
           </tr>
@@ -4679,13 +4679,17 @@ function buildPodcasts(bg, options = {}){
     const imgSafe = escAttr(String(p.img || "").trim());
     const altSafe = escHtml(String(p.alt || "").trim());
 
+    const quoteHtml = quoteSafe ? `&ldquo;${escHtml(quoteSafe)}&rdquo;` : "";
+    const quoteLinkedHtml = (quoteHtml && ytSafe)
+      ? `<a href="${ytSafe}" target="_blank" style="color:#227f9c; text-decoration:none; font-family:'Fraunces', Georgia, 'Times New Roman', serif;">${quoteHtml}</a>`
+      : quoteHtml;
     const quoteRow = quoteSafe
-      ? `<tr><td align="left" class="pad" style="padding:4px 20px; font-family:'Fraunces', Georgia, 'Times New Roman', serif; font-size:16px; line-height:1.6; color:#344054; font-weight:700;">&ldquo;${escHtml(quoteSafe)}&rdquo;</td></tr>`
+      ? `<tr><td align="left" class="pad" style="padding:4px 20px; font-family:'Fraunces', Georgia, 'Times New Roman', serif; font-size:16px; line-height:1.6; color:#227f9c; font-weight:700;">${quoteLinkedHtml}</td></tr>`
       : "";
 
     const thumbHtml = imgSafe
       ? (ytSafe
-        ? `<a href="${ytSafe}" target="_blank"><img src="${imgSafe}" alt="${altSafe}" style="display:block; width:auto; height:80px; border-radius:4px;"></a>`
+        ? `<a href="${ytSafe}" target="_blank" style="display:block; text-decoration:none;"><img src="${imgSafe}" alt="${altSafe}" style="display:block; width:auto; height:80px; border-radius:4px;"></a>`
         : `<img src="${imgSafe}" alt="${altSafe}" style="display:block; width:auto; height:80px; border-radius:4px;">`)
       : "";
 
@@ -4901,14 +4905,15 @@ ${sectionLabelRow}
 function buildLiveClasses(bg, options = {}){
   const dot = (color) => `<span style="display:inline-block; width:8px; height:8px; border-radius:2px; background-color:${color}; margin-right:4px;"></span>`;
 
-  const rows = state.classes.map(r => {
+  const rows = state.classes.map((r, idx) => {
     const instr = byId(presets.instructors, r.instructorId) || presets.instructors[0] || { avatar:"" };
     const diff = byId(presets.difficulties, r.difficultyId) || presets.difficulties[0] || { label:"", filledCount:1, filled:"#2a6c7f", empty:"#e5eef2" };
     const filledCount = Math.max(0, Math.min(3, Number(diff.filledCount ?? 1)));
     const dots = [0,1,2].map(i => dot(i < filledCount ? escAttr(diff.filled) : escAttr(diff.empty))).join("");
+    const dividerStyle = idx > 0 ? "border-top:1px solid #e5e7eb;" : "";
 
     return `
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-top:1px solid #e5e7eb;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="${dividerStyle}">
         <tr>
           <td valign="middle" width="120" style="width:120px; padding:16px 12px; font-family:'Lexend', Helvetica, Arial, sans-serif; color:#1f2d3d;">
             <div style="font-size:18px; font-weight:800; line-height:1.2;">${escHtml(r.time)}</div>
