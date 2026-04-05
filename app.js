@@ -39,27 +39,7 @@ const PROJECT_FIELD_IDS = Object.freeze([
   "feature_cta_url_1",
   "feature_cta_text_2",
   "feature_cta_url_2",
-  "lsat_header",
-  "lsat_quote",
-  "lsat_youtube_url",
-  "lsat_spotify_url",
-  "lsat_img",
-  "lsat_alt",
-  "lsat_desc",
-  "adm_header",
-  "adm_intro",
-  "adm_img",
-  "adm_alt",
-  "adm_desc",
-  "adm_youtube_url",
-  "adm_spotify_url",
-  "extra_header",
-  "extra_quote",
-  "extra_img",
-  "extra_alt",
-  "extra_desc",
-  "extra_youtube_url",
-  "extra_spotify_url",
+  "podcasts_header",
   "blog_desc",
   "discussion_label"
 ]);
@@ -121,9 +101,7 @@ const DEFAULT_STATE = {
     { id:"highlight", label:"Highlight", enabled:true },
     { id:"inThisNewsletter", label:"In This Newsletter", enabled:true },
     { id:"featureSlot", label:"Feature Slot", enabled:false },
-    { id:"lsatPodcast", label:"LSAT Podcast", enabled:true },
-    { id:"admissionsPodcast", label:"Admissions Podcast", enabled:true },
-    { id:"extraPodcast", label:"Daily Shorts", enabled:false },
+    { id:"podcasts", label:"Podcasts", enabled:true },
     { id:"admissionsBlog", label:"Admissions Update", enabled:true },
     { id:"discussion", label:"Discussion Forum Roundup", enabled:true },
     { id:"liveClasses", label:"Free Live Classes", enabled:true },
@@ -137,6 +115,9 @@ const DEFAULT_STATE = {
   ],
   customLinks: [
     { prompt:"", linkText:"", url:"" }
+  ],
+  podcasts: [
+    { quote:"", title:"", img:"", alt:"", yt:"", sp:"" }
   ],
   markdownSections: [],
   htmlFragments: [],
@@ -417,6 +398,7 @@ function normalizeState(raw){
     discussion: Array.isArray(raw.discussion) && raw.discussion.length ? raw.discussion : fallback.discussion,
     classes: Array.isArray(raw.classes) && raw.classes.length ? raw.classes : fallback.classes,
     customLinks: Array.isArray(raw.customLinks) && raw.customLinks.length ? raw.customLinks : fallback.customLinks,
+    podcasts: Array.isArray(raw.podcasts) && raw.podcasts.length ? raw.podcasts : fallback.podcasts,
     markdownSections,
     htmlFragments,
     previewEditor: {
@@ -703,6 +685,7 @@ function hydrateUiFromCurrentModels(snapshotFields = null) {
   renderDiscussionUI();
   renderClassesUI();
   renderCustomLinksUI();
+  renderPodcastsUI();
   applyPreviewEditModeUI();
   generateHtml();
 }
@@ -966,11 +949,6 @@ const PREVIEW_PLAIN_KEY_TO_INPUT_ID = Object.freeze({
   "feature.header": "feature_header",
   "feature.cta1Text": "feature_cta_text_1",
   "feature.cta2Text": "feature_cta_text_2",
-  "lsat.header": "lsat_header",
-  "lsat.quote": "lsat_quote",
-  "admissions.header": "adm_header",
-  "extra.header": "extra_header",
-  "extra.quote": "extra_quote",
   "discussion.header": "discussion_label"
 });
 
@@ -979,10 +957,6 @@ const RICH_OVERRIDE_KEYS_BY_INPUT_ID = Object.freeze({
   in_this_newsletter_markdown: ["inThisNewsletter.body"],
   feature_top_text: ["feature.topText"],
   feature_bottom_text: ["feature.bottomText"],
-  lsat_desc: ["lsat.desc"],
-  adm_intro: ["admissions.body"],
-  adm_desc: ["admissions.body"],
-  extra_desc: ["extra.desc"],
   blog_desc: ["admissionsBlog.body"]
 });
 
@@ -2567,10 +2541,7 @@ function sectionSupportsInlineImage(sectionId) {
   if (!sectionId) return false;
   return (
     isMarkdownSectionId(sectionId) ||
-    sectionId === "featureSlot" ||
-    sectionId === "lsatPodcast" ||
-    sectionId === "admissionsPodcast" ||
-    sectionId === "extraPodcast"
+    sectionId === "featureSlot"
   );
 }
 
@@ -2600,30 +2571,6 @@ function getSectionImageDefaults(sectionId) {
       imageAlt: String(document.getElementById("feature_alt")?.value || ""),
       imageLinkUrl: String(document.getElementById("feature_img_link")?.value || ""),
       imageWidth: clampNumber(document.getElementById("feature_img_width")?.value, 220, 560, 520)
-    };
-  }
-  if (sectionId === "lsatPodcast") {
-    return {
-      imageUrl: String(document.getElementById("lsat_img")?.value || ""),
-      imageAlt: String(document.getElementById("lsat_alt")?.value || ""),
-      imageLinkUrl: "",
-      imageWidth: 520
-    };
-  }
-  if (sectionId === "admissionsPodcast") {
-    return {
-      imageUrl: String(document.getElementById("adm_img")?.value || ""),
-      imageAlt: String(document.getElementById("adm_alt")?.value || ""),
-      imageLinkUrl: "",
-      imageWidth: 520
-    };
-  }
-  if (sectionId === "extraPodcast") {
-    return {
-      imageUrl: String(document.getElementById("extra_img")?.value || ""),
-      imageAlt: String(document.getElementById("extra_alt")?.value || ""),
-      imageLinkUrl: "",
-      imageWidth: 520
     };
   }
   return null;
@@ -2690,27 +2637,6 @@ function addImageForSection(sectionId, providedValues = null) {
     featureImgLink.value = values.imageLinkUrl;
     featureImgWidth.value = String(clampNumber(values.imageWidth, 220, 520, 520));
     syncFeatureImageWidthValue();
-    changed = true;
-  } else if (sectionId === "lsatPodcast") {
-    const image = document.getElementById("lsat_img");
-    const alt = document.getElementById("lsat_alt");
-    if (!image || !alt) return false;
-    image.value = values.imageUrl;
-    alt.value = values.imageAlt;
-    changed = true;
-  } else if (sectionId === "admissionsPodcast") {
-    const image = document.getElementById("adm_img");
-    const alt = document.getElementById("adm_alt");
-    if (!image || !alt) return false;
-    image.value = values.imageUrl;
-    alt.value = values.imageAlt;
-    changed = true;
-  } else if (sectionId === "extraPodcast") {
-    const image = document.getElementById("extra_img");
-    const alt = document.getElementById("extra_alt");
-    if (!image || !alt) return false;
-    image.value = values.imageUrl;
-    alt.value = values.imageAlt;
     changed = true;
   }
 
@@ -2869,34 +2795,9 @@ function addHighlightAuthorMetaFromPreview() {
     case "inThisNewsletter":
       return allFilled([in_this_newsletter_markdown]) ? "ready" : "needs";
 
-    case "lsatPodcast":
-      return allFilled([
-        lsat_quote,
-        lsat_img,
-        lsat_desc,
-        lsat_youtube_url,
-        lsat_spotify_url
-      ], ["lsat_alt"]) ? "ready" : "needs";
-
-    case "admissionsPodcast":
-      return allFilled([
-        adm_intro,
-        adm_img,
-        adm_desc,
-        adm_youtube_url,
-        adm_spotify_url
-      ], ["adm_alt"]) ? "ready" : "needs";
-
-    case "extraPodcast":
-      return (
-        allFilled([
-          extra_img,
-          extra_desc
-        ], ["extra_quote", "extra_alt", "extra_youtube_url", "extra_spotify_url"]) &&
-        (
-          String(extra_youtube_url?.value || "").trim().length > 0 ||
-          String(extra_spotify_url?.value || "").trim().length > 0
-        )
+    case "podcasts":
+      return state.podcasts.every(p =>
+        p.title && (p.yt || p.sp)
       ) ? "ready" : "needs";
 
     case "admissionsBlog":
@@ -3487,6 +3388,84 @@ document.getElementById("clearAllDiscussionBtn").addEventListener("click", () =>
   renderDiscussionUI();
 });
 
+/** ------------------------ Podcasts UI ------------------------ **/
+function blankPodcast(){
+  return { quote:"", title:"", img:"", alt:"", yt:"", sp:"" };
+}
+function renderPodcastsUI(){
+  const root = document.getElementById("podcastsList");
+  root.innerHTML = "";
+
+  state.podcasts.forEach((p, idx) => {
+    const el = document.createElement("div");
+    el.className = "item";
+    el.innerHTML = `
+      <div class="itemHead">
+        <strong>Episode ${idx + 1}</strong>
+        <div class="actions">
+          <button class="secondary tiny" type="button" data-clear-podcast="${idx}">Clear</button>
+          <button class="danger tiny" type="button" data-remove-podcast="${idx}">Remove</button>
+        </div>
+      </div>
+      <div class="row"><label>Quote / kicker</label><input data-k="quote" data-i="${idx}" value="${escAttr(p.quote)}" placeholder="&quot;A quote from this episode&quot;"></div>
+      <div class="row"><label>Episode title</label><input data-k="title" data-i="${idx}" value="${escAttr(p.title)}" placeholder="Episode title"></div>
+      <div class="grid">
+        <div class="row"><label>YouTube URL</label><input data-k="yt" data-i="${idx}" value="${escAttr(p.yt)}" placeholder="https://youtu.be/..."></div>
+        <div class="row"><label>Spotify URL</label><input data-k="sp" data-i="${idx}" value="${escAttr(p.sp)}" placeholder="https://open.spotify.com/..."></div>
+      </div>
+      <div class="grid">
+        <div class="row"><label>Thumbnail URL</label><input data-k="img" data-i="${idx}" value="${escAttr(p.img)}" placeholder="https://..."></div>
+        <div class="row"><label>Thumbnail alt</label><input data-k="alt" data-i="${idx}" value="${escAttr(p.alt)}"></div>
+      </div>
+    `;
+    root.appendChild(el);
+  });
+
+  root.querySelectorAll("input").forEach(inp => {
+    inp.addEventListener("input", () => {
+      const i = Number(inp.dataset.i);
+      const k = inp.dataset.k;
+      state.podcasts[i][k] = inp.value;
+      saveState();
+      autoGenerateHtml();
+    });
+  });
+
+  root.querySelectorAll("[data-clear-podcast]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.clearPodcast);
+      state.podcasts[i] = blankPodcast();
+      saveState();
+      renderPodcastsUI();
+      autoGenerateHtml();
+    });
+  });
+
+  root.querySelectorAll("[data-remove-podcast]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.removePodcast);
+      state.podcasts.splice(i, 1);
+      if (state.podcasts.length === 0) state.podcasts.push(blankPodcast());
+      saveState();
+      renderPodcastsUI();
+      autoGenerateHtml();
+    });
+  });
+}
+
+document.getElementById("addPodcastBtn").addEventListener("click", () => {
+  state.podcasts.push(blankPodcast());
+  saveState();
+  renderPodcastsUI();
+  autoGenerateHtml();
+});
+document.getElementById("clearAllPodcastsBtn").addEventListener("click", () => {
+  state.podcasts = [blankPodcast()];
+  saveState();
+  renderPodcastsUI();
+  autoGenerateHtml();
+});
+
 /** ------------------------ Classes UI ------------------------ **/
 function blankClassRow(){
   return {
@@ -4031,18 +4010,6 @@ function clearInputs(ids){
     el.value = "";
   });
 }
-document.getElementById("clearLsatBtn").addEventListener("click", () => {
-  clearInputs(["lsat_quote","lsat_youtube_url","lsat_spotify_url","lsat_img","lsat_alt","lsat_desc"]);
-  clearRichOverrideValue("lsat.desc");
-  renderSectionsUI();
-  autoGenerateHtml();
-});
-document.getElementById("clearExtraBtn").addEventListener("click", () => {
-  clearInputs(["extra_quote","extra_youtube_url","extra_spotify_url","extra_img","extra_alt","extra_desc"]);
-  clearRichOverrideValue("extra.desc");
-  renderSectionsUI();
-  autoGenerateHtml();
-});
 document.getElementById("clearBlogBtn").addEventListener("click", () => {
   clearInputs(["blog_desc"]);
   clearRichOverrideValue("admissionsBlog.body");
@@ -4094,19 +4061,6 @@ document.getElementById("clearHighlightBtn").addEventListener("click", () => {
   const moodSelect = document.getElementById("highlight_mood");
   if (moodSelect) moodSelect.value = "none";
   clearRichOverrideValue("highlight.summary");
-  renderSectionsUI();
-  autoGenerateHtml();
-});
-document.getElementById("clearAdmBtn").addEventListener("click", () => {
-  clearInputs([
-    "adm_youtube_url",
-    "adm_spotify_url",
-    "adm_img",
-    "adm_alt",
-    "adm_intro",
-    "adm_desc"
-  ]);
-  clearRichOverrideValue("admissions.body");
   renderSectionsUI();
   autoGenerateHtml();
 });
@@ -4706,60 +4660,32 @@ function buildInThisNewsletter(bg, options = {}){
   return sectionWrapper(bg, inner, options);
 }
 
-function buildPodcastSection(bg, {
-  header,
-  quote,
-  yt,
-  sp,
-  img,
-  alt,
-  desc,
-  headerColor,
-  editHeaderKey,
-  editQuoteKey,
-  editDescKey
-}, options = {}){
-  const interactive = !!options.interactive;
-  const headerInput = String(header || "").trim();
-  const headerSafe = headerInput
-    ? wrapEditablePlain(
-        escHtml(headerInput).toUpperCase(),
-        editHeaderKey,
-        interactive
-      )
-    : "";
-  const headerRow = headerSafe
-    ? `<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${headerSafe}</td></tr>`
-    : "";
-  const quoteSafe = wrapEditablePlain(
-    inlineMarkdownToHtml(quote),
-    editQuoteKey,
-    interactive
-  );
-  const ytSafe = escAttr(yt);
-  const spSafe = escAttr(sp);
-  const imgSafe = escAttr(img);
-  const altSafe = escHtml(alt);
-  const descHtml = editDescKey
-    ? getRichContentForRender(editDescKey, markdownToEmailHtml(desc))
-    : markdownToEmailHtml(desc);
-  const descEditable = wrapEditableRich(descHtml, editDescKey, interactive);
-  void headerColor;
+function buildPodcasts(bg, options = {}){
+  if (!Array.isArray(state.podcasts) || state.podcasts.length === 0) {
+    state.podcasts = [blankPodcast()];
+  }
+  const headerLabel = String(document.getElementById("podcasts_header")?.value || "PODCASTS").trim().toUpperCase();
+  const headerRow = `<tr><td align="center" class="pad" style="padding:2px 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:12px; letter-spacing:1.4px; color:#b3b8c4; font-weight:800;">${escHtml(headerLabel)}</td></tr>`;
 
-  const mediaHtml = imgSafe
-    ? (ytSafe
-      ? `<a href="${ytSafe}" target="_blank" style="display:block; width:100%;">
-          <img class="podcast-thumb" src="${imgSafe}" width="520" alt="${altSafe}"
-            style="display:block; width:100%; max-width:100%; border-radius:12px; height:auto;">
-        </a>`
-      : `<img class="podcast-thumb" src="${imgSafe}" width="520" alt="${altSafe}"
-           style="display:block; width:100%; max-width:100%; border-radius:12px; height:auto;">`)
-    : "";
+  const cardsHtml = state.podcasts.map(p => {
+    const quoteSafe = String(p.quote || "").trim();
+    const titleSafe = escHtml(String(p.title || "").trim());
+    const ytSafe = escAttr(String(p.yt || "").trim());
+    const spSafe = escAttr(String(p.sp || "").trim());
+    const imgSafe = escAttr(String(p.img || "").trim());
+    const altSafe = escHtml(String(p.alt || "").trim());
 
-  const buttonsHtml = (ytSafe || spSafe) ? `
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="podcast-btn-row">
-  <tr>
-    ${ytSafe ? `<td align="center" style="padding:0 4px;">
+    const quoteRow = quoteSafe
+      ? `<tr><td align="left" class="pad" style="padding:4px 20px; font-family:'Fraunces', Georgia, 'Times New Roman', serif; font-size:16px; line-height:1.6; color:#344054; font-weight:700;">&ldquo;${escHtml(quoteSafe)}&rdquo;</td></tr>`
+      : "";
+
+    const thumbHtml = imgSafe
+      ? (ytSafe
+        ? `<a href="${ytSafe}" target="_blank"><img src="${imgSafe}" alt="${altSafe}" style="display:block; width:auto; height:80px; border-radius:4px;"></a>`
+        : `<img src="${imgSafe}" alt="${altSafe}" style="display:block; width:auto; height:80px; border-radius:4px;">`)
+      : "";
+
+    const ytBtn = ytSafe ? `<td style="padding-right:8px;">
       <a href="${ytSafe}" target="_blank"
         style="display:inline-block; background-color:#227f9c; padding:10px 20px;
                border-radius:12px; border:1px solid #227f9c;
@@ -4771,8 +4697,9 @@ function buildPodcastSection(bg, {
              style="vertical-align:-1px; margin-right:6px; display:inline-block; filter: grayscale(1) invert(1);">
         Watch
       </a>
-    </td>` : ""}
-    ${spSafe ? `<td align="center" style="padding:0 4px;">
+    </td>` : "";
+
+    const spBtn = spSafe ? `<td>
       <a href="${spSafe}" target="_blank"
         style="display:inline-block; background-color:#227f9c; padding:10px 20px;
                border-radius:12px; border:1px solid #227f9c;
@@ -4784,51 +4711,31 @@ function buildPodcastSection(bg, {
              style="vertical-align:-1px; margin-right:6px; display:inline-block; filter: grayscale(1) invert(1);">
         Listen
       </a>
-    </td>` : ""}
-  </tr>
-</table>` : "";
+    </td>` : "";
 
-  const inner = `
-${headerRow}
-${(quoteSafe || (interactive && editQuoteKey)) ? `<tr><td align="left" class="pad" style="padding:12px 20px 8px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:16px; line-height:1.6; color:#344054; font-weight:700;">${quoteSafe}</td></tr>` : ""}
-${mediaHtml ? `<tr><td align="center" class="pad" style="padding:0 20px 10px 20px;">${mediaHtml}</td></tr>` : ""}
-${buttonsHtml ? `<tr><td align="center" class="pad" style="padding:0 20px 12px 20px;">${buttonsHtml}</td></tr>` : ""}
-${(descHtml || (interactive && editDescKey)) ? `<tr><td align="left" class="pad" style="padding:0 20px 12px 20px; font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:16px; line-height:1.6; color:#344054;">${descEditable}</td></tr>` : ""}`;
+    const cardRow = `<tr><td align="left" class="pad" style="padding:0 20px 16px 20px;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+      <td valign="middle">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          ${titleSafe ? `<tr><td style="font-family:'Lexend', Helvetica, Arial, sans-serif; font-size:15px; line-height:1.5; color:#344054; font-weight:700; padding-bottom:12px;">${titleSafe}</td></tr>` : ""}
+          ${(ytBtn || spBtn) ? `<tr><td>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="podcast-btn-row">
+              <tr>${ytBtn}${spBtn}</tr>
+            </table>
+          </td></tr>` : ""}
+        </table>
+      </td>
+      ${thumbHtml ? `<td valign="top" align="right" width="140" style="width:140px; padding-left:16px;">${thumbHtml}</td>` : ""}
+    </tr>
+  </table>
+</td></tr>`;
 
+    return quoteRow + cardRow;
+  }).join("\n");
+
+  const inner = headerRow + "\n" + cardsHtml;
   return sectionWrapper(bg, inner, options);
-}
-
-function buildAdmissionsPodcast(bg, options = {}){
-  return buildPodcastSection(bg, {
-    header: document.getElementById("adm_header").value,
-    quote: "",
-    yt: document.getElementById("adm_youtube_url").value,
-    sp: document.getElementById("adm_spotify_url").value,
-    img: document.getElementById("adm_img").value,
-    alt: document.getElementById("adm_alt").value,
-    desc: [
-      document.getElementById("adm_intro").value,
-      document.getElementById("adm_desc").value
-    ].filter(Boolean).join("\n\n"),
-    headerColor: "#15b79e",
-    editHeaderKey: "admissions.header",
-    editDescKey: "admissions.body"
-  }, options);
-}
-
-function buildAdditionalPodcast(bg, options = {}){
-  return buildPodcastSection(bg, {
-    header: document.getElementById("extra_header").value,
-    quote: document.getElementById("extra_quote").value,
-    yt: document.getElementById("extra_youtube_url").value,
-    sp: document.getElementById("extra_spotify_url").value,
-    img: document.getElementById("extra_img").value,
-    alt: document.getElementById("extra_alt").value,
-    desc: document.getElementById("extra_desc").value,
-    editHeaderKey: "extra.header",
-    editQuoteKey: "extra.quote",
-    editDescKey: "extra.desc"
-  }, options);
 }
 
 
@@ -5288,22 +5195,7 @@ function buildSectionById(sectionId, bg, options = {}){
   if (sectionId === "highlight") return buildHighlight(bg, options);
   if (sectionId === "inThisNewsletter") return buildInThisNewsletter(bg, options);
   if (sectionId === "featureSlot") return buildFeatureSlot(bg, options);
-  if (sectionId === "lsatPodcast") {
-    return buildPodcastSection(bg, {
-      header: document.getElementById("lsat_header").value,
-      quote: document.getElementById("lsat_quote").value,
-      yt: document.getElementById("lsat_youtube_url").value,
-      sp: document.getElementById("lsat_spotify_url").value,
-      img: document.getElementById("lsat_img").value,
-      alt: document.getElementById("lsat_alt").value,
-      desc: document.getElementById("lsat_desc").value,
-      editHeaderKey: "lsat.header",
-      editQuoteKey: "lsat.quote",
-      editDescKey: "lsat.desc"
-    }, options);
-  }
-  if (sectionId === "admissionsPodcast") return buildAdmissionsPodcast(bg, options);
-  if (sectionId === "extraPodcast") return buildAdditionalPodcast(bg, options);
+  if (sectionId === "podcasts") return buildPodcasts(bg, options);
   if (sectionId === "admissionsBlog") return buildAdmissionsBlog(bg, options);
   if (sectionId === "discussion") return buildDiscussion(bg, options);
   if (sectionId === "liveClasses") return buildLiveClasses(bg, options);
