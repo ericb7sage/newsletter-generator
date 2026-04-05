@@ -4469,7 +4469,7 @@ function buildHighlight(bg, options = {}){
 
   const titleHtml = title
     ? (url
-      ? `<a href="${url}" target="_blank" style="color:#344054; text-decoration:none;">${title}</a>`
+      ? `<a href="${url}" target="_blank" style="color:#344054; text-decoration:none; font-family:'Fraunces', Georgia, 'Times New Roman', serif;">${title}</a>`
       : title)
     : "";
 
